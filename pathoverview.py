@@ -39,6 +39,25 @@ def fit_image(img, new_size, method = Image.Resampling.LANCZOS):
         img2.mpp = img.mpp*downscale
     return img2
 
+def thumb_image(img, new_size, method = Image.Resampling.LANCZOS):
+    """A wrapper for PIL thumbnail() which returns a thumbnailed image 
+    of maximum new_size with mpp scale information retention.
+    img: image to be fit
+    new_size: tuple pixel size for max dimensions of image returned
+    method: PIL.Image resampling method passed to PIL thumbnail(). Default Image.Resampling.LANCZOS
+    returns: downscaled PIL image with mpp scale property recalculated
+    """
+    w1, h1 = img.size
+    if new_size[0] > w1 and new_size[1] > h1:
+        msg = "Thumbnail: new_size > current size"
+        raise ValueError(msg)
+    img.thumbnail(new_size, method)
+    w2, h2 = img.size
+    downscale = max(w1/w2, h1/h2)
+    if hasattr(img,"mpp"):
+        img.mpp = img.mpp*downscale
+    return img
+
 def add_scalebar(img, sb = 100, ratio = 50, mpp = None, color = "#000000", pad = 3):
     """Add a scalebar to image file.
     Scale information is supplied or taken from image.mpp.
@@ -102,10 +121,10 @@ class slide_obj:
         self.filename = Path(file)
         self.slide = openslide.OpenSlide(self.filename)
         self.mpp_x = float(self.slide.properties["openslide.mpp-x"])
-        self.rot = rotation
-        self.mirror = mirror
-        self.crop = crop
-        self.zoom_point = zoom
+        self.rot = float(rotation) if pd.notnull(rotation) else 0
+        self.mirror = mirror if pd.notnull(mirror) else False
+        self.crop = eval(str(crop)) if pd.notnull(crop) else ((0.5,0.5),1,1)
+        self.zoom_point = eval(str(zoom)) if pd.notnull(zoom) else (0.5,0.5)
     
     def __enter__(self):
         return self
@@ -135,7 +154,7 @@ class slide_obj:
         #calculate um per pixel at this downsample
         mpp_x = self.mpp_x * self.slide.level_downsamples[level]
         img.mpp = mpp_x
-        img = fit_image(img, image_size)
+        img = thumb_image(img, image_size)
         if sb:
             img = add_scalebar(img, sb=sb)        
         return img
@@ -358,8 +377,9 @@ class pathofigure:
                 with slide_obj(Path(row['root'],row['file'])) as sld:
                     if pd.notnull(row["rotation"]): sld.rot = float(row["rotation"])
                     if pd.notnull(row["mirror"]): sld.mirror = row["mirror"]
-                    if pd.notnull(row["crop"]): sld.crop = eval(row["crop"])
-                    if pd.notnull(row["zoom_point"]): sld.zoom_point = eval(row["zoom_point"])
+                    # excel import will be str, direct from interactive will be tuple. Force to str then eval to tuple
+                    if pd.notnull(row["crop"]): sld.crop = eval(str(row["crop"])) 
+                    if pd.notnull(row["zoom_point"]): sld.zoom_point = eval(str(row["zoom_point"]))
                     image = sld.get_figure(
                         pathofigure.panel_size,
                         add_inset = pathofigure.add_inset,
@@ -388,7 +408,8 @@ class pathofigure:
             d['Subject'] = pathofigure.pdf_subject
             d['Keywords'] = pathofigure.pdf_keywords
             d['CreationDate'] = pathofigure.pdf_creationdate
-            
+# end pathofigure
+
 class pathoverview_interactive_fig:
     def __init__(self, filename, rot = 0, mirror = False, zoom = (0,0), crop = None):
         with plt.ioff():
@@ -422,6 +443,30 @@ class pathoverview_interactive_fig:
         self.height = self.image.height
         self.zoom_dot = None
         self.centre = (0,0)
+    
+    def load_data(self,row):
+        if pd.notnull(row["rotation"]): self.rot = float(row["rotation"])
+        if pd.notnull(row["mirror"]): self.mirror = row["mirror"]
+        # excel import will be str, direct from interactive will be tuple. Force to str then eval to tuple
+        if pd.notnull(row["crop"]): 
+            crop = eval(str(row["crop"]))
+            crop_point = self.relative_to_point(crop[0])
+            self.crop = (crop_point, crop[1], crop[2])
+            crop_plot = self.rotate_from_image(crop_point)
+            width = crop[1]*self.width
+            height = crop[2]*self.height
+            # (xmin, xmax, ymin, ymax) 
+            self.crop_bounds = (
+                crop_plot[0]-(width/2),
+                crop_plot[0]+(width/2),
+                crop_plot[1]-(height/2),
+                crop_plot[1]+(height/2))
+        # make this correct for plotting
+        if pd.notnull(row["zoom_point"]): 
+            zoom_point = eval(str(row["zoom_point"]))            
+            zoom_point = self.relative_to_point(zoom_point)
+            self.zoom_point = zoom_point
+        self.update_fig()
 
     # @output.capture()
     def draw_fig(self):
@@ -470,6 +515,12 @@ class pathoverview_interactive_fig:
             return ((-point[0]+self.width/2)/self.width, (point[1]+self.height/2)/self.height)
         else:
             return ((point[0]+self.width/2)/self.width, (point[1]+self.height/2)/self.height)
+    
+    def relative_to_point(self, rel):
+        if self.mirror:
+            return ((-rel[0]*self.width-self.width/2), (rel[1]*self.height-self.height/2))
+        else:
+            return ((rel[0]*self.width-self.width/2), (rel[1]*self.height-self.height/2))
 
     def disconnect(self):
         """ Uninstall the event handlers for the plot. """
@@ -477,11 +528,16 @@ class pathoverview_interactive_fig:
             self.fig.canvas.mpl_disconnect(connection)
 
     def rect_callback(self, eclick, erelease):
+        # store the current location for re-drawing
         self.crop_bounds = self.r_selector.extents
-        width = (self.r_selector.extents[1] - self.r_selector.extents[0])/self.width
-        height = (self.r_selector.extents[3] - self.r_selector.extents[2])/self.height
-        #((center), x width, y height)
-        self.crop = (self.rotate_to_image(self.r_selector.center), width, height)
+    
+    def get_rect(self):
+        if self.crop_bounds is not None:
+            width = (self.r_selector.extents[1] - self.r_selector.extents[0])/self.width
+            height = (self.r_selector.extents[3] - self.r_selector.extents[2])/self.height
+            #((center), x width, y height)
+            self.crop = (self.rotate_to_image(self.r_selector.center), width, height)
+        return self.crop
 
     def onclick(self, event):
         click_x = event.xdata
@@ -489,6 +545,8 @@ class pathoverview_interactive_fig:
         if event.button == 3:
             new_rot = (180 - degrees(atan2(click_x-self.centre[0],click_y-self.centre[1])))
             self.rot = (self.rot + new_rot) % 360
+            ##recalibrate the crop coordinated
+            #self.rect_callback(None, None)
         elif event.dblclick:
             self.zoom_point = self.rotate_to_image((click_x,click_y), self.centre)
         else:
@@ -510,6 +568,7 @@ class pathoverview_interactive_fig:
         self.update_fig()
 
     def get_data(self):
+        self.get_rect()
         if self.crop:
             crop_data = (self.point_to_relative(self.crop[0]), self.crop[1], self.crop[2])
         else:
