@@ -76,5 +76,5 @@ pip install openslide-python pillow openpyxl matplotlib pandas jupyterlab ipywid
 
 ### To do:
 - [ ] Add inverted figure of zoom image with inset overview
-- [ ] Draw parameters from slide_df on interactive figure where already set
+- [x] Draw parameters from slide_df on interactive figure where already set
 - [ ] Check compatability with other slide formats
