@@ -1,4 +1,11 @@
+## github.com/EpiCENTR-Lab/PATHOverview
+## PATHOverview was created to arrange histology images for our publication:
+## www.frontiersin.org/articles/10.3389/fonc.2023.1156743/full
+## If you use PATHOverview please cite our paper.
+
+
 from math import degrees, atan2, radians, cos, sin, ceil
+from ast import literal_eval
 from PIL import Image, ImageDraw, ImageOps, ImageFont
 import os
 from pathlib import Path
@@ -18,12 +25,13 @@ plt.ioff()
 OPENSLIDE_PATH = None
 
 # Image manipulation functions with mpp scale retention
-def fit_image(img, new_size, method = Image.Resampling.LANCZOS):
+def fit_image(img, new_size, method = Image.Resampling.LANCZOS, fill_color = "#ffffff"):
     """A wrapper for PIL thumbnail() which returns a padded image 
     of required size with mpp scale information retention.
     img: image to be fit
     new_size: tuple pixel size for image returned
     method: PIL.Image resampling method passed to PIL thumbnail(). Default Image.Resampling.LANCZOS
+    fill_color: The image will be pasted on a background of this color. Default #ffffff
     returns: downscaled PIL image with mpp scale property recalculated
     """
     w1, h1 = img.size
@@ -33,7 +41,7 @@ def fit_image(img, new_size, method = Image.Resampling.LANCZOS):
     img.thumbnail(new_size, method)
     w2, h2 = img.size
     downscale = max(w1/w2, h1/h2)
-    img2 = Image.new('RGBA', new_size, "#ffffff")
+    img2 = Image.new('RGBA', new_size, fill_color)
     img2.paste(img, ((new_size[0]-w2)//2,(new_size[1]-h2)//2), None)      
     if hasattr(img,"mpp"):
         img2.mpp = img.mpp*downscale
@@ -58,7 +66,7 @@ def thumb_image(img, new_size, method = Image.Resampling.LANCZOS, **kwargs):
         img.mpp = img.mpp*downscale
     return img
 
-def add_scalebar(img, sb_len = 100, sb_ratio = 50, sb_mpp = None, sb_color = "#000000", 
+def add_scalebar(img, scale_bar = 100, sb_ratio = 50, sb_mpp = None, sb_color = "#000000", 
                  sb_pad = 3, sb_position = "bl", sb_label = False, sb_label_size = None, **kwargs):
     """Add a scalebar to image file.
     Scale information is supplied or taken from image.mpp.
@@ -81,16 +89,16 @@ def add_scalebar(img, sb_len = 100, sb_ratio = 50, sb_mpp = None, sb_color = "#0
         msg = "No mpp data."
         raise ValueError(msg)
     draw = ImageDraw.Draw(img)
-    if sb_len in ["Auto", "auto"]:
+    if scale_bar in ["Auto", "auto"]:
         # aim for a round number around 1/5 width
         um_width = img.width * mpp
         sb_target = um_width // 5
         # round up to multiple of 50um
         sb_target = ceil(sb_target / 50.0) * 50.0
         # get sb length in um to 1 sig fig
-        sb_len = float('%.1g' % sb_target)
+        scale_bar = float('%.1g' % sb_target)
     #number of pixels in scalebar
-    sb_px_x = sb_len//mpp
+    sb_px_x = scale_bar//mpp
     sb_px_y = max(img.height//sb_ratio,5) #ratio scale bar to image height
     if "r" in sb_position or "right" in sb_position:
         sb_x1 = img.width-sb_pad-sb_px_x
@@ -111,10 +119,10 @@ def add_scalebar(img, sb_len = 100, sb_ratio = 50, sb_mpp = None, sb_color = "#0
             sb_label_size = max(sb_px_y * 2, 20)
         # use the default matplotlib font
         font = ImageFont.truetype(matplotlib.font_manager.findfont(None), sb_label_size) 
-        if sb_len>=1000:
-            sb_text = f"{round(sb_len/1000,1)}mm"
+        if scale_bar>=1000:
+            sb_text = f"{round(scale_bar/1000,1)}mm"
         else:
-            sb_text = f"{round(sb_len)}um"
+            sb_text = f"{round(scale_bar)}um"
         width, height = draw.textsize(sb_text, font=font)
         if width > sb_px_x: # label is longer than the scalebar therefore will overflow image
             if "r" in sb_position or "right" in sb_position:
@@ -158,7 +166,7 @@ def apply_border(img, bw = 2, b_color = "#000000", **kwargs):
 class slide_obj:
     openslide_imported = False
     
-    def __init__(self, file, rotation = 0, mirror = False, zoom = (0.5,0.5), crop = ((0.5,0.5),1,1)):
+    def __init__(self, file, rotation = 0, mirror = False, zoom = (0.5,0.5), crop = ((0.5,0.5),1,1), mpp_x = None):
         if not slide_obj.openslide_imported:
             global openslide
             if hasattr(os, 'add_dll_directory'):
@@ -172,12 +180,24 @@ class slide_obj:
                 import openslide
             slide_obj.openslide_imported = True
         self.filename = Path(file)
-        self.slide = openslide.OpenSlide(self.filename)
-        self.mpp_x = float(self.slide.properties["openslide.mpp-x"])
-        self.rot = float(rotation) if pd.notnull(rotation) else 0
+        #self.slide = openslide.OpenSlide(self.filename)
+        # This should include support for image files with similar api
+        # https://openslide.org/api/python/#wrapping-a-pil-image
+        self.slide = openslide.open_slide(self.filename)
+        if "openslide.mpp-x" in self.slide.properties.keys():
+            self.mpp_x = float(self.slide.properties["openslide.mpp-x"])
+        elif mpp_x != None:
+            self.mpp_x = mpp_x
+        else:
+            msg = "mpp_x value not set in slide file, specify mpp_x with object creation"
+            raise ValueError(msg)
+        self.rotation = float(rotation) if pd.notnull(rotation) else 0
         self.mirror = mirror if pd.notnull(mirror) else False
         self.crop = eval(str(crop)) if pd.notnull(crop) else ((0.5,0.5),1,1)
         self.zoom_point = eval(str(zoom)) if pd.notnull(zoom) else (0.5,0.5)
+        self.fill_color = self._get_fill_color()
+        self.gamma = 1.0 # Experimental
+        self.wb = self._get_wb()
     
     def __enter__(self):
         return self
@@ -188,7 +208,54 @@ class slide_obj:
     def close(self):
         self.slide.close()
         self.slide = None
-        
+    
+    def _get_fill_color(self, where = "left", sample_width = 10):
+        """ Calculate an average color (average of each chanel) from the edge 
+            of the slide which is assumed to be a blank background. This is 
+            used for filling the edges of the image on crop and rotation and 
+            white balance calculation.
+            Default is the median px of a 10px strip from both the left and right of the slide.
+            """
+        if where == "top":
+            # This uses a single pixel strip from the top of the slide
+            # Not great results with OS-1 as image extends beyond glass
+            # so use left and right for higher chance of clean background
+            
+            # Calculate downsample for >=1000 px strip
+            downsample = self.slide.dimensions[0]/1000
+            level = self.slide.get_best_level_for_downsample(downsample)
+            temp_img = self.slide.read_region((0, 0), level, (self.slide.level_dimensions[level][0],1))
+
+            # Find an average pixel across this strip. Here using 50 percentile so can adjust.
+            fill_color = tuple(np.percentile(np.array(temp_img)[0,:], 50, axis=0).astype(int))
+        else:
+            # Calculate downsample for >=1000 px strip
+            downsample = self.slide.dimensions[1]/1000
+            level = self.slide.get_best_level_for_downsample(downsample)
+            level_downsample = self.slide.level_downsamples[level]
+            
+            # Get left hand strip of width sample_width
+            img_data = np.array(self.slide.read_region((0, 0), 
+                                                           level, (sample_width,self.slide.level_dimensions[level][1])))
+            # Get right hand strip of width sample_width
+            img_data2 = np.array(self.slide.read_region((self.slide.dimensions[0]-int(sample_width*level_downsample), 0), 
+                                                            level, (sample_width,self.slide.level_dimensions[level][1])))
+            # Append two samples for averaging
+            img_data = np.append(img_data, img_data2, axis = 1)
+
+            # Find median pixel intensity (percentile 50 so can tinker with %)
+            fill_color = tuple(np.percentile(img_data[:,:], 50, axis=(0,1)).astype(int))
+            
+        return fill_color
+
+    def _get_wb(self):
+        """ Calculate a float for each chanel to multiply fill_color up to white.
+            Returns a tuple of floats for RGBA
+        """
+        # Find the factor to multiply each chanel up to 255
+        wb = tuple(255/i for i in self.fill_color)
+        return wb
+    
     def get_raw_overview_image(self, image_size = (500,500), sb=None):
         """ Return a PIL.Image containing an RGBA thumbnail of the slide.
             Rotations and crop are not applied.
@@ -230,14 +297,14 @@ class slide_obj:
             return img.crop((0,0,img.height,img.height))
     
     def _get_sub_image(self, image_size, image_centre = (0.5,0.5), 
-                      true_size = None, rot = None, mirror = None, sb_len = None, **kwargs):
+                      true_size = None, rotation = None, mirror = None, scale_bar = None, 
+                        fill_color = "auto", gamma = None, wb = None, apply_wb = False, **kwargs):
         image_width = image_size[0] #300 #px
         image_height = image_size[1]
-        #image_size = (image_width, image_width)
         if true_size is None:
             true_size = tuple(i * self.mpp_x for i in self.slide.dimensions)
-        elif len(true_size) == 1:
-            true_size = (true_size[0],true_size[0]*(image_height/image_width))
+        elif type(true_size) == int or type(true_size) == float:
+            true_size = (true_size,true_size*(image_height/image_width))
         true_width = true_size[0]
         true_height = true_size[1]
 
@@ -248,21 +315,29 @@ class slide_obj:
 
         level_mpp = level_downsample * self.mpp_x
         
-        #get tile of double largest side centred on zoom_point, later crop out centre
+        # get tile of double largest side centred on zoom_point, later crop out centre
         tile_width = int(max(true_width, true_height)*2/level_mpp)
         tile_x = int((self.slide.dimensions[0]*image_centre[0]) - tile_width*level_downsample/2)
         tile_y = int((self.slide.dimensions[1]*image_centre[1]) - tile_width*level_downsample/2)
         
         tile = self.slide.read_region((tile_x,tile_y), level, (tile_width,tile_width))
-                
-        img = Image.new('RGBA', tile.size, "#ffffff")
-        img.paste(tile, (0,0), None)
+        
+        # tile comes with zero alpha in areas bayond the image dimension 
+        # (we've oversampled to double size to allow cropping) 
+        # so if fill_color = auto, paste onto image with slides neutral background color calculated on creation
+        if fill_color is None:
+            fill_color = "#ffffff"
+        elif fill_color in ["auto","Auto"]:
+            fill_color = self.fill_color
+        
+        img = Image.new('RGBA', tile.size, fill_color)
+        img.paste(tile, (0,0), tile) # (image, position, mask: using the tile alpha)
         
         if mirror:
             img = ImageOps.mirror(img)
-            
-        if rot:
-            img = img.rotate(rot, fillcolor="#ffffff", expand=False)
+        
+        if rotation:
+            img = img.rotate(rotation, fillcolor=fill_color, expand=False)
         
         #crop image to required dimensions
         crop_width = true_width/level_mpp
@@ -273,53 +348,78 @@ class slide_obj:
         img = img.crop((crop_x, crop_y, w-crop_x, h-crop_y))
         
         img.mpp = level_mpp
-        img = fit_image(img, image_size)
-        if sb_len:
-            img = add_scalebar(img, sb_len=sb_len, **kwargs)
+        img = fit_image(img, image_size, fill_color=fill_color)
+        
+        # Experimental
+        if wb is None:
+            wb = self.wb
+        
+        if apply_wb is True:
+            mpp = img.mpp
+            wb = np.array(wb)
+            new = np.clip(np.array(img)*wb[np.newaxis,np.newaxis,:],0,255)
+            img = Image.fromarray(new.astype(np.uint8))
+            img.mpp = mpp
+        
+        # Experimental
+        # apply gamma on final, background filled image before scalebar
+        if gamma is None:
+            gamma = self.gamma
+        if gamma != 1:
+            # apply gamma correction.
+            # This created LUT for all possible values then applies
+            img = img.point(lambda p: pow(p/255, (1/gamma))*255)
+        
+        if scale_bar:
+            img = add_scalebar(img, scale_bar=scale_bar, **kwargs)
         return img
     
     def get_zoom_image(self, image_size, true_width, zoom_point = None, 
-                       rot = None, mirror = None, **kwargs):
+                       rotation = None, mirror = None, **kwargs):
         """ Returns a PIL.Image 
         """
         if zoom_point is None:
             zoom_point = self.zoom_point
-        if rot is None:
-            rot = self.rot
+        if rotation is None:
+            rotation = self.rotation
         if mirror is None:
             mirror = self.mirror
         return self._get_sub_image(image_size, image_centre = zoom_point, 
-                                  true_size = (true_width,), rot = rot, mirror = mirror, 
+                                  true_size = true_width, rotation = rotation, mirror = mirror, 
                                    **kwargs)
     
-    def get_crop_image(self, image_size, rot = None, mirror = None, crop = None, **kwargs):
+    def get_crop_image(self, image_size, rotation = None, mirror = None, crop = None, crop_real_width = None, **kwargs):
         """ Returns PIL.Image of cropped and rotated ROI from slide
             required:
             image_size
             if other parameters are None, the slide_obj properties are used.
         """
-        if rot is None:
-            rot = self.rot
+        if rotation is None:
+            rotation = self.rotation
         if mirror is None:
             mirror = self.mirror
         if crop is None:
             crop = self.crop
+        if crop_real_width is not None:
+            return self._get_sub_image(image_size, image_centre = crop[0], 
+                                  true_size = crop_real_width,
+                                  rotation = rotation, mirror = mirror, **kwargs)
         return self._get_sub_image(image_size, image_centre = crop[0], 
                                   true_size = self._relative_to_true((crop[1],crop[2])),
-                                  rot = rot, mirror = mirror, **kwargs)
+                                  rotation = rotation, mirror = mirror, **kwargs)
     
-    def get_overview_image(self, image_size, rot = None, mirror = None, **kwargs):
+    def get_overview_image(self, image_size, rotation = None, mirror = None, **kwargs):
         """ Returns PIL.Image of whole slide with rotation and mirroring
             required:
             image_size
             if other parameters are None, the slide_obj properties are used.
         """
-        if rot is None:
-            rot = self.rot
+        if rotation is None:
+            rotation = self.rotation
         if mirror is None:
             mirror = self.mirror
         return self._get_sub_image(image_size,
-                                  rot = rot, mirror = mirror, **kwargs)
+                                  rotation = rotation, mirror = mirror, **kwargs)
     
     def _relative_to_l0(self, rel):
         return (rel[0]*self.slide.dimensions[0], rel[1]*self.slide.dimensions[1])
@@ -327,22 +427,22 @@ class slide_obj:
     def _relative_to_true(self, rel):
         return (rel[0]*self.slide.dimensions[0]*self.mpp_x, rel[1]*self.slide.dimensions[1]*self.mpp_x)
 
-    def _rotate_point(self, loc1, rot = 0, centre = (0,0)):
-        rads = radians(rot)
+    def _rotate_point(self, loc1, rototation = 0, centre = (0,0)):
+        rads = radians(rototation)
         new_x = centre[0] + cos(rads) * (loc1[0] - centre[0]) - sin(rads) * (loc1[1] - centre[1])
         new_y = centre[1] + sin(rads) * (loc1[0] - centre[0]) + cos(rads) * (loc1[1] - centre[1])
         #loc2 = (new_x/image1.size[0], new_y/image1.size[1])
         return (new_x, new_y)
     
-    def get_figure(self, image_size = (500,500), add_inset = True, inset_size = None, zoomed_true = 250, 
-                   rot = None, mirror = None, zoom_point = None, crop = None, 
-                   sb_len = None, inset_sb_len = None, **kwargs):
+    def get_figure(self, panel_size = (500,500), add_inset = True, inset_size = None, zoom_real_size = 250, 
+                   rotation = None, mirror = None, zoom_point = None, crop = None, 
+                   scale_bar = None, inset_scale_bar = None, crop_real_width = None, **kwargs):
         """
         Returns PIL.Image containing cropped overview image with inset zoom image (add_inset = True).
         If parameters are None, slide_obj parameters are used.
         """
-        if rot is None:
-            rot = self.rot
+        if rotation is None:
+            rotation = self.rotation
         if mirror is None:
             mirror = self.mirror
         if crop is None:
@@ -350,29 +450,32 @@ class slide_obj:
         if zoom_point is None:
             zoom_point = self.zoom_point
         if inset_size is None:
-            inset_size = (image_size[0]//3,image_size[0]//3)
+            inset_size = (int(panel_size[0]/2.5),int(panel_size[0]/2.5))
         
         base_image = apply_border(self.get_crop_image(
-                                                image_size, rot = rot, mirror = mirror, 
-                                                crop = crop, sb_len = sb_len, **kwargs), **kwargs)
+                                                panel_size, rotation = rotation, mirror = mirror, 
+                                                crop = crop, scale_bar = scale_bar, crop_real_width = crop_real_width,
+                                                **kwargs), **kwargs)
         if add_inset:
             zoomed_image = apply_border(self.get_zoom_image(
-                                                inset_size, zoomed_true, zoom_point = zoom_point, 
-                                                rot = rot, mirror = mirror, 
-                                                sb_len = inset_sb_len, **kwargs), **kwargs)
+                                                inset_size, zoom_real_size, zoom_point = zoom_point, 
+                                                rotation = rotation, mirror = mirror, 
+                                                scale_bar = inset_scale_bar, **kwargs), **kwargs)
             base_image.paste(zoomed_image, (int(base_image.width-zoomed_image.width),0))
-        
+            del zoomed_image
+            
             relative_zoom_point = tuple(i-j for i, j in zip(zoom_point,crop[0]))
             if mirror:
                 relative_zoom_point = (-relative_zoom_point[0],relative_zoom_point[1])
-            # calculate um distance between middle of crop and zoom point on non-rotated image as is relative to non-rotated scan dimensions
+            # calculate um distance between middle of crop and zoom point on non-rotated 
+            # image as is relative to non-rotated scan dimensions
             zoom_point_offset = (relative_zoom_point[0]*self.slide.dimensions[0]*self.mpp_x,
                                  relative_zoom_point[1]*self.slide.dimensions[1]*self.mpp_x)
-            zoom_point_offset = self._rotate_point(zoom_point_offset, -rot, (0,0))
+            zoom_point_offset = self._rotate_point(zoom_point_offset, -rotation, (0,0))
 
             box_x = zoom_point_offset[0] / base_image.mpp + 0.5*base_image.width
             box_y = zoom_point_offset[1] / base_image.mpp + 0.5*base_image.height
-            box_width = zoomed_true/base_image.mpp
+            box_width = zoom_real_size/base_image.mpp
 
             draw = ImageDraw.Draw(base_image)
             draw.rectangle((
@@ -384,15 +487,15 @@ class slide_obj:
 
         return base_image
     
-    def get_figure_inverted(self, image_size = (500,500), add_inset = True, inset_size = None, zoomed_true = 250, 
-                   rot = None, mirror = None, zoom_point = None, crop = None, 
-                   sb_len = None, inset_sb_len = None, **kwargs):
+    def get_figure_inverted(self, panel_size = (500,500), add_inset = True, inset_size = None, zoom_real_size = 250, 
+                   rotation = None, mirror = None, zoom_point = None, crop = None, 
+                   scale_bar = None, inset_scale_bar = None, crop_real_width = None, **kwargs):
         """
             Returns PIL.Image containing cropped overview image with inset zoom image (add_inset = True).
             If parameters are None, slide_obj parameters are used.
         """
-        if rot is None:
-            rot = self.rot
+        if rotation is None:
+            rotation = self.rotation
         if mirror is None:
             mirror = self.mirror
         if crop is None:
@@ -400,16 +503,17 @@ class slide_obj:
         if zoom_point is None:
             zoom_point = self.zoom_point
         if inset_size is None:
-            inset_size = (image_size[0]//3,image_size[0]//3)
+            inset_size = (panel_size[0]//3,panel_size[0]//3)
         
         zoomed_image = apply_border(self.get_zoom_image(
-                                                image_size, zoomed_true, zoom_point = zoom_point, 
-                                                rot = rot, mirror = mirror, sb_len = sb_len, **kwargs), **kwargs)
+                                                panel_size, zoom_real_size, zoom_point = zoom_point, 
+                                                rotation = rotation, mirror = mirror, scale_bar = scale_bar, **kwargs), **kwargs)
         
         if add_inset:
             base_image = apply_border(self.get_crop_image(
-                                                inset_size, rot = rot, mirror = mirror, 
-                                                crop = crop, sb_len = inset_sb_len, **kwargs), **kwargs)
+                                                inset_size, rotation = rotation, mirror = mirror, 
+                                                crop = crop, scale_bar = inset_scale_bar, crop_real_width = crop_real_width,
+                                                **kwargs), **kwargs)
         
             relative_zoom_point = tuple(i-j for i, j in zip(zoom_point,crop[0]))
             if mirror:
@@ -418,11 +522,11 @@ class slide_obj:
             # as is relative to non-rotated scan dimensions
             zoom_point_offset = (relative_zoom_point[0]*self.slide.dimensions[0]*self.mpp_x,
                                  relative_zoom_point[1]*self.slide.dimensions[1]*self.mpp_x)
-            zoom_point_offset = self._rotate_point(zoom_point_offset, -rot, (0,0))
+            zoom_point_offset = self._rotate_point(zoom_point_offset, -rotation, (0,0))
 
             box_x = zoom_point_offset[0] / base_image.mpp + 0.5*base_image.width
             box_y = zoom_point_offset[1] / base_image.mpp + 0.5*base_image.height
-            box_width = zoomed_true/base_image.mpp
+            box_width = zoom_real_size/base_image.mpp
 
             draw = ImageDraw.Draw(base_image)
             draw.rectangle((
@@ -447,8 +551,8 @@ class slide_obj:
     def get_focus_check(self, size = 900, num_img = (9,9), level = 0):
         """ 
         An experimental function to return an image of num_image tiles
-        evenly spaced across the specified level. Could be used to spot out 
-        of focus regions.
+        evenly spaced across the specified level. Could be used to spot
+        out of focus regions.
         """
         sub_size = size//num_img[0]
         img = Image.new('RGBA', (sub_size*num_img[0],sub_size*num_img[1]), "#ffffff")
@@ -464,46 +568,33 @@ class slide_obj:
 
 
 class pathofigure:
-    # Variables to set page layout
-#     fig_type = None
-#     panel_size = (500,500)
-#     scale_bar = 1000
-#     scale_bar_mm = scale_bar / 1000 #for footer
-#     sb_label = False
-
-#     add_inset = True
-#     inset_size = (200,200)
-#     zoom_real_size = 250
-#     inset_scale_bar = None
-
-#     figsize = (8.27,11.69) #A4 in inches
-#     n_panels_x = 4
-#     n_panels_y = 6
-
-#     # str.format(**globals()) is applied at time of use.
-#     title_overwrite = None
-#     footer_overwrite = "Scale bar {pathofigure.scale_bar_mm}mm. Inset image width {pathofigure.zoom_real_size}um."
+    pages = []
     
     fig_defaults = {
         "fig_type": None,
         "panel_size": (500,500),
         "scale_bar": "auto",
         "sb_label": True,
+        "sb_label_size": None,
+        "crop_real_width": None,
+        "fill_color": "auto",
+        "apply_wb": True,
 
         "add_inset": True,
-        "inset_size": (200,200),
+        "inset_size": None,
         "zoom_real_size": 250,
         "inset_scale_bar": "auto",
+        "label_size": None,
 
         "figsize": (8.27,11.69), #A4 in inches
-        "n_panels_x": 4,
-        "n_panels_y": 6,
+        "n_x": 4,
+        "n_y": 6,
         "fig_layout": "compressed",
         "dpi": 300,
 
         # str.format(**globals()) is applied at time of use.
-        "title_overwrite": None,
-        "footer_overwrite": "Created with PATHOverview. github.com/EpiCENTR-Lab/PATHOverview",
+        "title1": "",
+        "footer": "Created with PATHOverview. github.com/EpiCENTR-Lab/PATHOverview",
         
         # Ensure missing values are None not np.nan
         "rotation": None,
@@ -513,7 +604,6 @@ class pathofigure:
         "root": None,
         "file": None,
         "label": None,
-        "title1": None,
         "title2": None,
         "title3": None,
     }
@@ -524,43 +614,29 @@ class pathofigure:
         page_row = page_row.reindex(page_row.index.union(defaults.index))
         page_row = page_row.fillna(defaults.dropna())
         page_row = page_row.replace(np.nan, None)
-
-        #n_x = page_row["n_x"] if pd.notnull(page_row.get("n_x")) else pathofigure.n_panels_x
-        #n_y = page_row["n_y"] if pd.notnull(page_row.get("n_y")) else pathofigure.n_panels_y
-        #figsize = page_row["figsize"] if pd.notnull(page_row.get("figsize")) else pathofigure.figsize
-        #panel_size = page_row["panel_size"] if pd.notnull(page_row.get("panel_size")) else pathofigure.panel_size
         
-        n_x = page_row["n_x"]
-        n_y = page_row["n_y"]
-        figsize = page_row["figsize"]
-        panel_size = page_row["panel_size"]
+        n_x = int(page_row["n_x"])
+        n_y = int(page_row["n_y"])
+        figsize = literal_eval(str(page_row["figsize"]))
         
         if len(df) > (n_y * n_x):
             msg = "Too many panels for layout!"
             raise ValueError(msg)
 
         fig, axs = plt.subplots(n_y, n_x, layout=page_row["fig_layout"],
-                                figsize=figsize, dpi=page_row["dpi"])
+                                figsize=figsize, dpi=page_row["dpi"], squeeze=False)
         for ax in axs.ravel():
             ax.axis('off')
 
-        if page_row.title_overwrite is not None:
-            title = page_row.title_overwrite.format(**globals())
-        else:
-            title_list = [str(t) for t in 
+        title_list = [str(t) for t in 
                           [page_row.get("title1"),page_row.get("title2"),page_row.get("title3")] 
                           if pd.notnull(t)]
-            title = "\n".join(title_list).format(**globals())
-
-        if page_row.footer_overwrite is not None:
-            footer = page_row.footer_overwrite.format(**globals())
-        elif pd.notnull(page_row.get("footer")):
-            footer = page_row["footer"].format(**globals())
-        else:
-            footer = ""
-
+        title = "\n".join(title_list).format(**globals())
         fig.suptitle(title)
-        fig.supxlabel(footer)
+        
+        if page_row["footer"]:
+            footer = page_row["footer"].format(**globals())
+            fig.supxlabel(footer)
 
         for index, row in df.iterrows():
             # this doesn't work on a df (cant fill with tuple) so running here on series
@@ -570,49 +646,38 @@ class pathofigure:
             
             ax = axs.ravel()[row.get("order")]
             if pd.notnull(row.get("label")):
-                ax.set_title(row["label"], y=0, loc="right", pad=2, wrap=True)
+                ax.set_title(row["label"], y=0, loc="right", pad=2, wrap=True, fontsize = row["label_size"])
 
             if pd.notnull(row.get("file")):
 
                 with slide_obj(Path(row.get("root",""),row.get("file"))) as sld:
-                    if pd.notnull(row.get("rotation")): sld.rot = float(row["rotation"])
-                    if pd.notnull(row.get("mirror")): sld.mirror = row["mirror"]
-                    # excel import will be str, direct from interactive will be tuple. 
-                    # Force to str then eval to tuple
-                    if pd.notnull(row.get("crop")): sld.crop = eval(str(row["crop"])) 
-                    if pd.notnull(row.get("zoom_point")): sld.zoom_point = eval(str(row["zoom_point"]))
+                    
+                    # Use literal_eval to transform any parameters that have been imported from Excel
+                    # as str. Force to str to handle any non-Excel data.
+                    to_eval = ["rotation", "crop", "panel_size", "inset_size", "zoom_point"]
+                    for k in to_eval:
+                        if pd.notnull(row[k]):
+                            row[k] = literal_eval(str(row[k]))
                     
                     if row["fig_type"] in ["inverted","Inverted"]:
-                        image = sld.get_figure_inverted(
-                            panel_size,
-                            add_inset = row["add_inset"],
-                            inset_size = eval(row["inset_size"]) if isinstance(row["inset_size"], str) \
-                                                            else row["inset_size"], 
-                            zoomed_true = row["zoom_real_size"], 
-                            sb_len = row["scale_bar"],
-                            inset_sb_len = row["inset_scale_bar"],
-                            sb_label = row["sb_label"])
+                        # Send all of row (unpacked) to be passed on to sub-functions.
+                        # This means parameters like border width get passed on.
+                        image = sld.get_figure_inverted(**row)
                     
                     elif row["fig_type"] in ["raw","Raw"]:
                         image = apply_border(sld.get_raw_overview_image(
-                            image_size = panel_size, sb=row["scale_bar"]))
+                            image_size = row["panel_size"], sb=row["scale_bar"]))
                     
                     elif row["fig_type"] in ["slide","Slide"]:
                         image = apply_border(sld.get_summary_figure(
-                            width = panel_size[0]))
+                            width = row["panel_size"][0]))
                     
                     else:
-                        image = sld.get_figure(
-                            panel_size,
-                            add_inset = row["add_inset"],
-                            inset_size = eval(row["inset_size"]) if isinstance(row["inset_size"], str) \
-                                                            else row["inset_size"], 
-                            zoomed_true = row["zoom_real_size"], 
-                            sb_len = row["scale_bar"],
-                            inset_sb_len = row["inset_scale_bar"],
-                            sb_label = row["sb_label"])
+                        image = sld.get_figure(**row)
+                        
                     ax.imshow(image)
                     image.close()
+                    del image
         return fig
     
     # @staticmethod
@@ -653,15 +718,19 @@ class pathofigure:
             d['Subject'] = pathofigure.pdf_subject
             d['Keywords'] = pathofigure.pdf_keywords
             d['CreationDate'] = pathofigure.pdf_creationdate
+    
+    @staticmethod
+    def make_pages(pages_df, slides_df, pages = None, save_pages = True, retain_pages = True, save_pdf = True):
+        pass
 # end pathofigure
 
 class pathoverview_interactive_fig:
-    def __init__(self, filename, rot = 0, mirror = False, zoom = (0,0), crop = None):
+    def __init__(self, filename, rotation = 0, mirror = False, zoom = (0,0), crop = None):
         with plt.ioff():
             self.fig = plt.figure(figsize=(8,8))
         self.fig.canvas.toolbar_visible = False
         self.ax = self.fig.add_subplot()#1, 1, 1)
-        self.load_image(filename, rot, mirror, zoom, crop)
+        self.load_image(filename, rotation, mirror, zoom, crop)
         self.draw_fig()
         self.click_listen = self.fig.canvas.mpl_connect('button_press_event', self.onclick)
         
@@ -674,11 +743,11 @@ class pathoverview_interactive_fig:
     def close(self):
         self.fig.close()
 
-    def load_image(self, filename, rot = 0, mirror = False, zoom = (0,0), crop = None):
+    def load_image(self, filename, rotation = 0, mirror = False, zoom = (0,0), crop = None):
         with slide_obj(Path(filename)).get_raw_overview_image() as img:
             self.image = img
-        self.rot = rot
-        self.expand_rot = True
+        self.rotation = rotation
+        self.expand_rotation = True
         self.mirror = mirror
         # middle of the zoom image relative to the center of image1
         self.zoom_point = zoom
@@ -690,7 +759,7 @@ class pathoverview_interactive_fig:
         self.centre = (0,0)
     
     def load_data(self,row):
-        if pd.notnull(row["rotation"]): self.rot = float(row["rotation"])
+        if pd.notnull(row["rotation"]): self.rotation = float(row["rotation"])
         if pd.notnull(row["mirror"]): self.mirror = row["mirror"]
         # excel import will be str, direct from interactive will be tuple. Force to str then eval to tuple
         if pd.notnull(row["crop"]): 
@@ -718,7 +787,7 @@ class pathoverview_interactive_fig:
         image2 = self.image
         if self.mirror:
             image2 = ImageOps.mirror(image2)
-        image2 = image2.rotate(self.rot, fillcolor="#ffffff", expand=self.expand_rot)
+        image2 = image2.rotate(self.rotation, fillcolor="#ffffff", expand=self.expand_rotation)
         # show the image with figure origin at centre
         pic = self.ax.imshow(image2, cmap='gray',
                             extent=[-image2.width/2., image2.width/2., image2.height/2., -image2.height/2. ])
@@ -744,13 +813,13 @@ class pathoverview_interactive_fig:
         self.draw_fig()
         
     def rotate_from_image(self, loc1, centre = (0,0)):
-        rads = -radians(self.rot)
+        rads = -radians(self.rotation)
         new_x = centre[0] + cos(rads) * (loc1[0] - centre[0]) - sin(rads) * (loc1[1] - centre[1])
         new_y = centre[1] + sin(rads) * (loc1[0] - centre[0]) + cos(rads) * (loc1[1] - centre[1])
         return (new_x, new_y)
     
     def rotate_to_image(self, loc1, centre = (0,0)):
-        rads = radians(self.rot)
+        rads = radians(self.rotation)
         new_x = centre[0] + cos(rads) * (loc1[0] - centre[0]) - sin(rads) * (loc1[1] - centre[1])
         new_y = centre[1] + sin(rads) * (loc1[0] - centre[0]) + cos(rads) * (loc1[1] - centre[1])
         return (new_x, new_y)
@@ -789,7 +858,7 @@ class pathoverview_interactive_fig:
         click_y = event.ydata
         if event.button == 3:
             new_rot = (180 - degrees(atan2(click_x-self.centre[0],click_y-self.centre[1])))
-            self.rot = (self.rot + new_rot) % 360
+            self.rotation = (self.rotation + new_rot) % 360
             ##recalibrate the crop coordinated
             #self.rect_callback(None, None)
         elif event.dblclick:
@@ -800,7 +869,7 @@ class pathoverview_interactive_fig:
         return
 
     def reset_fig(self):
-        self.rot = 0
+        self.rotation = 0
         self.zoom_point = (0.5,0.5)
         self.crop = None
         self.crop_bounds = None
@@ -818,5 +887,5 @@ class pathoverview_interactive_fig:
             crop_data = (self.point_to_relative(self.crop[0]), self.crop[1], self.crop[2])
         else:
             crop_data = None
-        return {"rotation":self.rot, "mirror":self.mirror, 
+        return {"rotation":self.rotation, "mirror":self.mirror, 
                 "zoom_point":self.point_to_relative(self.zoom_point), "crop":crop_data}

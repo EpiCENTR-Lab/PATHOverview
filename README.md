@@ -20,6 +20,8 @@ This tool was developed to present immunohistochemistry images from Hamamatsu Na
 
 **Phenotyping of lymphoproliferative tumours generated in xenografts of non-small cell lung cancer.**<br>
 David R. Pearce, Ayse U. Akarca, Roel P. H. De Maeyer, Emily Kostina, Ariana Huebner, Monica Sivakumar, Takahiro Karasaki, Kavina Shah, Sam M. Janes, Nicholas McGranahan, Venkat Reddy, Arne N. Akbar, David A. Moore, Teresa Marafioti, Charles Swanton and Robert E. Hynds<br>
+https://www.frontiersin.org/articles/10.3389/fonc.2023.1156743/full
+Frontiers in Oncology 2023; doi: https://doi.org/10.3389/fonc.2023.1156743
 bioRxiv 2023.01.24.520089; doi: https://doi.org/10.1101/2023.01.24.520089
 
 ## Getting started & running examples
@@ -82,5 +84,6 @@ pip install openslide-python pillow openpyxl matplotlib pandas jupyterlab ipywid
 ### To do:
 - [x] Add inverted figure of zoom image with inset overview
 - [x] Draw parameters from slide_df on interactive figure where already set
+- [x] Add white balance
 - [ ] Check compatability with other slide formats
 - [ ] assess improvements to memory usage and speed
