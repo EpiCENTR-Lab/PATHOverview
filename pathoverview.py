@@ -162,6 +162,14 @@ def apply_border(img, bw = 2, b_color = "#000000", **kwargs):
         img2.mpp = img.mpp*downscale
     return img2
 
+def apply_wb(img, wb, **kwargs):
+    wb = np.array(wb)
+    new = np.clip(np.array(img)*wb[np.newaxis,np.newaxis,:],0,255)
+    img2 = Image.fromarray(new.astype(np.uint8))
+    if hasattr(img,"mpp"):
+        img2.mpp = img.mpp
+    return img2
+
 # class wrapper for openslide object with added picture output formatting functions
 class slide_obj:
     openslide_imported = False
@@ -298,7 +306,7 @@ class slide_obj:
     
     def _get_sub_image(self, image_size, image_centre = (0.5,0.5), 
                       true_size = None, rotation = None, mirror = None, scale_bar = None, 
-                        fill_color = "auto", gamma = None, wb = None, apply_wb = False, **kwargs):
+                        fill_color = "auto", gamma = None, wb = None, use_wb = False, **kwargs):
         image_width = image_size[0] #300 #px
         image_height = image_size[1]
         if true_size is None:
@@ -324,7 +332,8 @@ class slide_obj:
         
         # tile comes with zero alpha in areas bayond the image dimension 
         # (we've oversampled to double size to allow cropping) 
-        # so if fill_color = auto, paste onto image with slides neutral background color calculated on creation
+        # so if fill_color = auto, paste onto image with slides neutral 
+        # background color calculated on creation
         if fill_color is None:
             fill_color = "#ffffff"
         elif fill_color in ["auto","Auto"]:
@@ -354,12 +363,13 @@ class slide_obj:
         if wb is None:
             wb = self.wb
         
-        if apply_wb is True:
-            mpp = img.mpp
-            wb = np.array(wb)
-            new = np.clip(np.array(img)*wb[np.newaxis,np.newaxis,:],0,255)
-            img = Image.fromarray(new.astype(np.uint8))
-            img.mpp = mpp
+        if use_wb is True:
+            # mpp = img.mpp
+            # wb = np.array(wb)
+            # new = np.clip(np.array(img)*wb[np.newaxis,np.newaxis,:],0,255)
+            # img = Image.fromarray(new.astype(np.uint8))
+            # img.mpp = mpp
+            img = apply_wb(img, wb)
         
         # Experimental
         # apply gamma on final, background filled image before scalebar
@@ -476,20 +486,21 @@ class slide_obj:
             box_x = zoom_point_offset[0] / base_image.mpp + 0.5*base_image.width
             box_y = zoom_point_offset[1] / base_image.mpp + 0.5*base_image.height
             box_width = zoom_real_size/base_image.mpp
-
+            
             draw = ImageDraw.Draw(base_image)
             draw.rectangle((
-                (int((box_x+box_width/2)),
-                 int((box_y-box_width/2))),
                 (int((box_x-box_width/2)),
+                 int((box_y-box_width/2))),
+                (int((box_x+box_width/2)),
                  int((box_y+box_width/2)))
                 ), outline=kwargs.get("b_color","black"))
 
         return base_image
     
-    def get_figure_inverted(self, panel_size = (500,500), add_inset = True, inset_size = None, zoom_real_size = 250, 
-                   rotation = None, mirror = None, zoom_point = None, crop = None, 
-                   scale_bar = None, inset_scale_bar = None, crop_real_width = None, **kwargs):
+    def get_figure_inverted(self, panel_size = (500,500), add_inset = True, 
+                    inset_size = None, zoom_real_size = 250, 
+                    rotation = None, mirror = None, zoom_point = None, crop = None, 
+                    scale_bar = None, inset_scale_bar = None, crop_real_width = None, **kwargs):
         """
             Returns PIL.Image containing cropped overview image with inset zoom image (add_inset = True).
             If parameters are None, slide_obj parameters are used.
@@ -530,9 +541,9 @@ class slide_obj:
 
             draw = ImageDraw.Draw(base_image)
             draw.rectangle((
-                (int((box_x+box_width/2)),
-                 int((box_y-box_width/2))),
                 (int((box_x-box_width/2)),
+                 int((box_y-box_width/2))),
+                (int((box_x+box_width/2)),
                  int((box_y+box_width/2)))
                 ), outline="black")
             zoomed_image.paste(base_image, (int(zoomed_image.width-base_image.width),0))
@@ -578,7 +589,7 @@ class pathofigure:
         "sb_label_size": None,
         "crop_real_width": None,
         "fill_color": "auto",
-        "apply_wb": True,
+        "use_wb": True,
 
         "add_inset": True,
         "inset_size": None,
