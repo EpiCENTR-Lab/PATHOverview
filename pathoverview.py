@@ -21,13 +21,13 @@ matplotlib.use('nbagg')
 plt.ioff()
 
 # Openslide is imported with the first slide object to allow this path to be set after module import
-# Windows: this must be overwritten with the path to openslide\bin before first slide objust creation
+# Windows: this must be overwritten with the path to openslide\bin before first slide object creation
 OPENSLIDE_PATH = None
 
 # Image manipulation functions with mpp scale retention
-def fit_image(img, new_size, method = Image.Resampling.LANCZOS, fill_color = "#ffffff"):
+def fit_image(img, new_size, method = Image.Resampling.LANCZOS, fill_color = None, **kwargs):
     """A wrapper for PIL thumbnail() which returns a padded image 
-    of required size with mpp scale information retention.
+    of required size with retention of metadata.
     img: image to be fit
     new_size: tuple pixel size for image returned
     method: PIL.Image resampling method passed to PIL thumbnail(). Default Image.Resampling.LANCZOS
@@ -41,10 +41,55 @@ def fit_image(img, new_size, method = Image.Resampling.LANCZOS, fill_color = "#f
     img.thumbnail(new_size, method)
     w2, h2 = img.size
     downscale = max(w1/w2, h1/h2)
+    if fill_color == None:
+        if "fill_color" in img.info:
+            fill_color = img.info["fill_color"]
+        # if hasattr(img, "fill_color"):
+        #     fill_color = img.fill_color
+        else:
+            fill_color = "#ffffff"
     img2 = Image.new('RGBA', new_size, fill_color)
-    img2.paste(img, ((new_size[0]-w2)//2,(new_size[1]-h2)//2), None)      
-    if hasattr(img,"mpp"):
-        img2.mpp = img.mpp*downscale
+    #img2.fill_color = fill_color
+    img2.paste(img, ((new_size[0]-w2)//2,(new_size[1]-h2)//2), None)
+    img2.info = img.info
+    if "mpp" in img.info:
+        img2.info["mpp"] = img.info["mpp"]*downscale
+    # if hasattr(img,"mpp"):
+    #     img2.mpp = img.mpp*downscale
+    return img2
+
+def fit_width(img, new_size, method = Image.Resampling.LANCZOS, fill_color = None, **kwargs):
+    """A wrapper for PIL thumbnail() which returns an image fit to the
+    required width with height cropped.padded and metadata retention.
+    img: image to be fit
+    new_size: tuple pixel size for image returned
+    method: PIL.Image resampling method passed to PIL thumbnail(). Default Image.Resampling.LANCZOS
+    fill_color: The image will be pasted on a background of this color. Default #ffffff
+    returns: downscaled PIL image with mpp scale property recalculated
+    """
+    w1, h1 = img.size
+    if new_size[0] > w1:
+        msg = "Thumbnail: new_size > current size"
+        raise ValueError(msg)
+    thumb_size = (new_size[0], h1 * w1/new_size[0])
+    img.thumbnail(thumb_size, method)
+    w2, h2 = img.size
+    downscale = w1/w2
+    if fill_color == None:
+        if "fill_color" in img.info:
+            fill_color = img.info["fill_color"]
+        # if hasattr(img, "fill_color"):
+        #     fill_color = img.fill_color
+        else:
+            fill_color = "#ffffff"
+    img2 = Image.new('RGBA', new_size, fill_color)
+    #img2.fill_color = fill_color
+    img2.paste(img, ((new_size[0]-w2)//2,(new_size[1]-h2)//2), None)
+    img2.info = img.info
+    if "mpp" in img.info:
+        img2.info["mpp"] = img.info["mpp"]*downscale
+    # if hasattr(img,"mpp"):
+    #     img2.mpp = img.mpp*downscale
     return img2
 
 def thumb_image(img, new_size, method = Image.Resampling.LANCZOS, **kwargs):
@@ -62,29 +107,33 @@ def thumb_image(img, new_size, method = Image.Resampling.LANCZOS, **kwargs):
     img.thumbnail(new_size, method)
     w2, h2 = img.size
     downscale = max(w1/w2, h1/h2)
-    if hasattr(img,"mpp"):
-        img.mpp = img.mpp*downscale
+    if "mpp" in img.info:
+        img.info["mpp"] = img.info["mpp"]*downscale
+    # if hasattr(img,"mpp"):
+    #     img.mpp = img.mpp*downscale
     return img
 
 def add_scalebar(img, scale_bar = 100, sb_ratio = 50, sb_mpp = None, sb_color = "#000000", 
                  sb_pad = 3, sb_position = "bl", sb_label = False, sb_label_size = None, **kwargs):
     """Add a scalebar to image file.
-    Scale information is supplied or taken from image.mpp.
+    Scale information is supplied or taken from image.info["mpp"].
     Scale information in retained in returned image.
     img: PIL image to add scale bar to.
     sb: length in um of scalebar. default 100um
     ratio: height of scalebar relative to image height. default 50
-    mpp: microns per pixel scale to use. If not supplied, img.mpp will be used.
+    mpp: microns per pixel scale to use. If not supplied, img.into["mpp"] will be used.
     color: color of scalebar
     pad: distance of scalebar from image edge (px)
     position: position of scalebar (string: 'bl', 'tl', 'br', 'tr')
     label: add a size label to sb (binary)
-    label_size: 
+    label_size: in pixels
     returns: PIL image with mpp data retained"""
     if sb_mpp is not None:
-        img.mpp = mpp # should we set this??
-    elif hasattr(img,"mpp"):
-        mpp = img.mpp
+        img.info["mpp"] = mpp # should we set this??
+    elif "mpp" in img.info:
+        mpp = img.info["mpp"]
+    # elif hasattr(img,"mpp"):
+    #     mpp = img.mpp
     else:
         msg = "No mpp data."
         raise ValueError(msg)
@@ -123,7 +172,8 @@ def add_scalebar(img, scale_bar = 100, sb_ratio = 50, sb_mpp = None, sb_color = 
             sb_text = f"{round(scale_bar/1000,1)}mm"
         else:
             sb_text = f"{round(scale_bar)}um"
-        width, height = draw.textsize(sb_text, font=font)
+        _, _, width, height = draw.textbbox((0,0), sb_text, font=font) 
+        # returns (left, top, right, bottom) of bounding box
         if width > sb_px_x: # label is longer than the scalebar therefore will overflow image
             if "r" in sb_position or "right" in sb_position:
                 anchor = "r"
@@ -145,29 +195,58 @@ def add_scalebar(img, scale_bar = 100, sb_ratio = 50, sb_mpp = None, sb_color = 
         #draw.text((pad,img.height-sb_px_y-pad), sb_text, font=font, anchor="ld", fill=color)
     return img
 
-def apply_border(img, bw = 2, b_color = "#000000", **kwargs):
+def apply_border(img, bw = 2, b_color = "#000000", border_crop = "width", **kwargs):
     """Applies a border to supplied image by thumbnailing image 
-    on a black background. Image mpp scale information is adjusted.
+    on a b_color background. Image mpp scale information is adjusted.
     img: image to apply border to
     bw: border width (pixels) default 2
-    color: border color
+    b_color: border color
     returns: image of same dimensions with PIL mpp data adjusted"""
     w1, h1 = img.size
-    img = fit_image(img, (w1-2*bw,h1-2*bw))
-    w2, h2 = img.size
-    downscale = max(w1/w2, h1/h2)
+    if border_crop == "width":
+        # image fit by width to protect "figures are xxx um wide", non-square 
+        # images will be cropped / padded in height
+        img = fit_width(img, (w1-2*bw,h1-2*bw))
+    elif border_crop == "fit":
+        # image padded in width & height as needed
+        img = fit_image(img, (w1-2*bw,h1-2*bw))
+    elif border_crop == "crop":
+        # crop a border width from around image
+        # makes a mess of scale bar so prefer fit method
+        imgb = img.crop((bw,bw,w1-bw,h1-bw))
+        imgb.info = img.info 
+        # if hasattr(img,"mpp"):
+        #     imgb.mpp = img.mpp
+        img = imgb
+    else:
+        img == fit_width(img, (w1-2*bw,h1-2*bw))
     img2 = Image.new('RGBA', (w1,h1), b_color)
     img2.paste(img, (bw,bw), None)
-    if hasattr(img,"mpp"):
-        img2.mpp = img.mpp*downscale
+    #img.info["mpp"] is recalculated in fitting function and can be used directly here
+    img2.info = img.info
+    # if hasattr(img,"mpp"):
+    #     #img.mpp is recalculated in fitting function and can be used directly here
+    #     img2.mpp = img.mpp
+    # if hasattr(img, "fill_color"):
+    #         img2.fill_color = img.fill_color
     return img2
-
-def apply_wb(img, wb, **kwargs):
+    
+def apply_wb(img, wb, use_wb, **kwargs):
     wb = np.array(wb)
+    if isinstance(use_wb, float):
+        wb = ((wb-1) * use_wb) + 1
     new = np.clip(np.array(img)*wb[np.newaxis,np.newaxis,:],0,255)
     img2 = Image.fromarray(new.astype(np.uint8))
-    if hasattr(img,"mpp"):
-        img2.mpp = img.mpp
+    img2.info = img.info
+    if "fill_color" in img2.info:
+        if isinstance(use_wb, float):
+            img2.info["fill_color"] = tuple(np.clip(np.array(img2.info["fill_color"])*wb,0,255).astype(int))
+        else:
+            img2.info["fill_color"] = (255,255,255,255)
+        #pass
+        # apply wb to fill_color
+    # if hasattr(img,"mpp"):
+    #     img2.mpp = img.mpp
     return img2
 
 # class wrapper for openslide object with added picture output formatting functions
@@ -217,7 +296,7 @@ class slide_obj:
         self.slide.close()
         self.slide = None
     
-    def _get_fill_color(self, where = "left", sample_width = 10):
+    def _get_fill_color(self, where = "side", sample_width = 10):
         """ Calculate an average color (average of each chanel) from the edge 
             of the slide which is assumed to be a blank background. This is 
             used for filling the edges of the image on crop and rotation and 
@@ -280,7 +359,8 @@ class slide_obj:
 
         #calculate um per pixel at this downsample
         mpp_x = self.mpp_x * self.slide.level_downsamples[level]
-        img.mpp = mpp_x
+        #img.mpp = mpp_x
+        img.info["mpp"] = mpp_x
         img = thumb_image(img, image_size)
         if sb:
             img = add_scalebar(img, sb=sb)        
@@ -330,7 +410,7 @@ class slide_obj:
         
         tile = self.slide.read_region((tile_x,tile_y), level, (tile_width,tile_width))
         
-        # tile comes with zero alpha in areas bayond the image dimension 
+        # tile comes with zero alpha in areas beyond the image dimension 
         # (we've oversampled to double size to allow cropping) 
         # so if fill_color = auto, paste onto image with slides neutral 
         # background color calculated on creation
@@ -340,6 +420,7 @@ class slide_obj:
             fill_color = self.fill_color
         
         img = Image.new('RGBA', tile.size, fill_color)
+        img.info["fill_color"] = fill_color
         img.paste(tile, (0,0), tile) # (image, position, mask: using the tile alpha)
         
         if mirror:
@@ -356,20 +437,15 @@ class slide_obj:
         crop_y = (h-crop_height)/2
         img = img.crop((crop_x, crop_y, w-crop_x, h-crop_y))
         
-        img.mpp = level_mpp
+        #img.mpp = level_mpp
+        img.info["mpp"] = level_mpp
         img = fit_image(img, image_size, fill_color=fill_color)
         
         # Experimental
-        if wb is None:
-            wb = self.wb
-        
-        if use_wb is True:
-            # mpp = img.mpp
-            # wb = np.array(wb)
-            # new = np.clip(np.array(img)*wb[np.newaxis,np.newaxis,:],0,255)
-            # img = Image.fromarray(new.astype(np.uint8))
-            # img.mpp = mpp
-            img = apply_wb(img, wb)
+        if use_wb is not False:
+            if wb is None:
+                wb = self.wb
+            img = apply_wb(img, wb, use_wb)
         
         # Experimental
         # apply gamma on final, background filled image before scalebar
@@ -377,7 +453,7 @@ class slide_obj:
             gamma = self.gamma
         if gamma != 1:
             # apply gamma correction.
-            # This created LUT for all possible values then applies
+            # This creates LUT for all possible values then applies
             img = img.point(lambda p: pow(p/255, (1/gamma))*255)
         
         if scale_bar:
@@ -460,7 +536,9 @@ class slide_obj:
         if zoom_point is None:
             zoom_point = self.zoom_point
         if inset_size is None:
-            inset_size = (int(panel_size[0]/2.5),int(panel_size[0]/2.5))
+            # calculate inset to be square of min 1/2.5 width or 1/2.5 height of the panel
+            inset_dim = int(min(panel_size[0], panel_size[1])/2.5)
+            inset_size = (inset_dim, inset_dim)
         
         base_image = apply_border(self.get_crop_image(
                                                 panel_size, rotation = rotation, mirror = mirror, 
@@ -483,17 +561,18 @@ class slide_obj:
                                  relative_zoom_point[1]*self.slide.dimensions[1]*self.mpp_x)
             zoom_point_offset = self._rotate_point(zoom_point_offset, -rotation, (0,0))
 
-            box_x = zoom_point_offset[0] / base_image.mpp + 0.5*base_image.width
-            box_y = zoom_point_offset[1] / base_image.mpp + 0.5*base_image.height
-            box_width = zoom_real_size/base_image.mpp
-            
+            box_x = zoom_point_offset[0] / base_image.info["mpp"] + 0.5*base_image.width
+            box_y = zoom_point_offset[1] / base_image.info["mpp"] + 0.5*base_image.height
+            box_width = zoom_real_size/base_image.info["mpp"]
+            box_height = box_width/inset_size[0]*inset_size[1]
+
             draw = ImageDraw.Draw(base_image)
             draw.rectangle((
                 (int((box_x-box_width/2)),
-                 int((box_y-box_width/2))),
+                 int((box_y-box_height/2))),
                 (int((box_x+box_width/2)),
-                 int((box_y+box_width/2)))
-                ), outline=kwargs.get("b_color","black"))
+                 int((box_y+box_height/2)))
+                ), outline="black")
 
         return base_image
     
@@ -514,16 +593,20 @@ class slide_obj:
         if zoom_point is None:
             zoom_point = self.zoom_point
         if inset_size is None:
-            inset_size = (panel_size[0]//3,panel_size[0]//3)
+            # calculate inset to be square of min 1/2.5 width or 1/2.5 height of the panel
+            inset_dim = int(min(panel_size[0], panel_size[1])/2.5)
+            inset_size = (inset_dim, inset_dim)
         
         zoomed_image = apply_border(self.get_zoom_image(
                                                 panel_size, zoom_real_size, zoom_point = zoom_point, 
-                                                rotation = rotation, mirror = mirror, scale_bar = scale_bar, **kwargs), **kwargs)
+                                                rotation = rotation, mirror = mirror, scale_bar = scale_bar, 
+                                                **kwargs), **kwargs)
         
         if add_inset:
             base_image = apply_border(self.get_crop_image(
                                                 inset_size, rotation = rotation, mirror = mirror, 
-                                                crop = crop, scale_bar = inset_scale_bar, crop_real_width = crop_real_width,
+                                                crop = crop, scale_bar = inset_scale_bar, 
+                                                crop_real_width = crop_real_width,
                                                 **kwargs), **kwargs)
         
             relative_zoom_point = tuple(i-j for i, j in zip(zoom_point,crop[0]))
@@ -535,16 +618,17 @@ class slide_obj:
                                  relative_zoom_point[1]*self.slide.dimensions[1]*self.mpp_x)
             zoom_point_offset = self._rotate_point(zoom_point_offset, -rotation, (0,0))
 
-            box_x = zoom_point_offset[0] / base_image.mpp + 0.5*base_image.width
-            box_y = zoom_point_offset[1] / base_image.mpp + 0.5*base_image.height
-            box_width = zoom_real_size/base_image.mpp
+            box_x = zoom_point_offset[0] / base_image.info["mpp"] + 0.5*base_image.width
+            box_y = zoom_point_offset[1] / base_image.info["mpp"] + 0.5*base_image.height
+            box_width = zoom_real_size/base_image.info["mpp"]
+            box_height = box_width/panel_size[0]*panel_size[1]
 
             draw = ImageDraw.Draw(base_image)
             draw.rectangle((
                 (int((box_x-box_width/2)),
-                 int((box_y-box_width/2))),
+                 int((box_y-box_height/2))),
                 (int((box_x+box_width/2)),
-                 int((box_y+box_width/2)))
+                 int((box_y+box_height/2)))
                 ), outline="black")
             zoomed_image.paste(base_image, (int(zoomed_image.width-base_image.width),0))
 
