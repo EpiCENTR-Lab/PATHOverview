@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<annotations>
+	<ndpviewstate id="1">
+		<title>zoom</title>
+		<details/>
+		<coordformat>nanometers</coordformat>
+		<lens>3.143789</lens>
+		<x>11254765</x>
+		<y>2197231</y>
+		<z>0</z>
+		<showtitle>1</showtitle>
+		<showhistogram>0</showhistogram>
+		<showlineprofile>0</showlineprofile>
+		<annotation type="pin" displayname="AnnotatePin" color="#ff0000">
+			<x>10122368</x>
+			<y>3100100</y>
+			<icon>pinred</icon>
+			<stricon>iconpinred</stricon>
+		</annotation>
+	</ndpviewstate>
+	<ndpviewstate id="2">
+		<title>crop</title>
+		<details/>
+		<coordformat>nanometers</coordformat>
+		<lens>3.369244</lens>
+		<x>11217975</x>
+		<y>2272856</y>
+		<z>0</z>
+		<showtitle>1</showtitle>
+		<showhistogram>0</showhistogram>
+		<showlineprofile>0</showlineprofile>
+		<annotation type="freehand" displayname="AnnotateRectangle" color="#000000">
+			<measuretype>0</measuretype>
+			<closed>1</closed>
+			<pointlist>
+				<point>
+					<x>7275205</x>
+					<y>2835460</y>
+				</point>
+				<point>
+					<x>9309007</x>
+					<y>5512667</y>
+				</point>
+				<point>
+					<x>13980593</x>
+					<y>1963628</y>
+				</point>
+				<point>
+					<x>11946792</x>
+					<y>-713578</y>
+				</point>
+			</pointlist>
+			<specialtype>rectangle</specialtype>
+			<specialtype>rectangle</specialtype>
+		</annotation>
+	</ndpviewstate>
+	<ndpviewstate id="3">
+		<title>background</title>
+		<details/>
+		<coordformat>nanometers</coordformat>
+		<lens>1.494104</lens>
+		<x>12248088</x>
+		<y>3010485</y>
+		<z>0</z>
+		<showtitle>1</showtitle>
+		<showhistogram>0</showhistogram>
+		<showlineprofile>0</showlineprofile>
+		<annotation type="pin" displayname="AnnotatePin" color="#ff0000">
+			<x>8243779</x>
+			<y>5157304</y>
+			<icon>pinred</icon>
+			<stricon>iconpinred</stricon>
+		</annotation>
+	</ndpviewstate>
+</annotations>
+
