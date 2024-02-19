@@ -1,17 +1,17 @@
 # PATHOverview
-A tool for generating PATHOlogy Overview figures from whole-slide image files.
+A tool for generating PATHOlogy Overview figures from whole-slide image files. This tool was developed to create easy to view multi-page multi-panel figures to see all histology slides from one sample at a time. It has since evolved!
 
 PATHOverview rotates, crops and zooms whole slide files to generate customised images, these can then be exported as multi-panel figures.<br>
 
-Default PATHOverview figure:
+Default PATHOverview figure:<br>
 ![An example PATHOverview image](test_files/test_image.png)
 
 
-Inverted PATHOverview figure:
+Inverted PATHOverview figure:<br>
 ![An example PATHOverview image](test_files/test_image_inverted.png)
 
-An [example output pdf](./test_files/test_output.pdf) is contained in the test_files folder. This has been generated using parameters set in slide_list_demo.xlsx and our [interactive Jupyter notebook](pathoverview_interactive_example.ipynb). Further examples can be found in our publication linked below.<br>
-Basic usage of PATHOverview is detailed in our [test notebook](pathoverview_basic_use.ipynb) and an [interactive Jupyter notebook](pathoverview_interactive_example.ipynb) is provided for setting crop parameters for each slide.<br>
+An [example output pdf](./test_files/test_output.pdf) is contained in the test_files folder. This has been generated using parameters set in slide_lists_demo.xlsx and our [interactive Jupyter notebook](pathoverview_interactive_example.ipynb). Further examples can be found in our publication linked below.<br>
+Basic usage of PATHOverview is detailed in our [test notebook](pathoverview_basic_use.ipynb). Whole slide files can be listed (and NDPA annotation read) using [PATHOverview_list_files.ipynb](pathoverview_list_files.ipynb). An [interactive Jupyter notebook](pathoverview_interactive_example.ipynb) is provided for setting crop parameters for each slide.<br>
 
 PATHOverview uses OpenSlide ([openslide.org](http://openslide.org)) and its python bindings to access virtual slide images. PATHOverview has been tested on Hamamatsu Nanozoomer NDPI images. The example notebooks require freely available ndpi images [OS-1.ndpi](https://openslide.cs.cmu.edu/download/openslide-testdata/Hamamatsu/) and [OS-2.ndpi](https://openslide.cs.cmu.edu/download/openslide-testdata/Hamamatsu/) from OpenSlide which should be placed in the /test_files folder.<br>
 
@@ -85,5 +85,6 @@ pip install openslide-python pillow openpyxl matplotlib pandas jupyterlab ipywid
 - [x] Add inverted figure of zoom image with inset overview
 - [x] Draw parameters from slide_df on interactive figure where already set
 - [x] Add white balance
+- [x] Read parameters from NDPA files to enable more accurate zoom etc.
 - [ ] Check compatability with other slide formats
 - [ ] assess improvements to memory usage and speed

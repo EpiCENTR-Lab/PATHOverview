@@ -25,12 +25,12 @@ plt.ioff()
 OPENSLIDE_PATH = None
 
 # Image manipulation functions with mpp scale retention
-def fit_image(img, new_size, method = Image.Resampling.LANCZOS, fill_color = None, **kwargs):
+def fit_image(img, new_size, resize_method = Image.Resampling.LANCZOS, fill_color = None, **kwargs):
     """A wrapper for PIL thumbnail() which returns a padded image 
     of required size with retention of metadata.
     img: image to be fit
     new_size: tuple pixel size for image returned
-    method: PIL.Image resampling method passed to PIL thumbnail(). Default Image.Resampling.LANCZOS
+    resize_method: PIL.Image resampling method passed to PIL thumbnail(). Default Image.Resampling.LANCZOS
     fill_color: The image will be pasted on a background of this color. Default #ffffff
     returns: downscaled PIL image with mpp scale property recalculated
     """
@@ -38,7 +38,7 @@ def fit_image(img, new_size, method = Image.Resampling.LANCZOS, fill_color = Non
     if new_size[0] > w1 and new_size[1] > h1:
         msg = "Thumbnail: new_size > current size"
         raise ValueError(msg)
-    img.thumbnail(new_size, method)
+    img.thumbnail(new_size, resize_method)
     w2, h2 = img.size
     downscale = max(w1/w2, h1/h2)
     if fill_color == None:
@@ -58,12 +58,12 @@ def fit_image(img, new_size, method = Image.Resampling.LANCZOS, fill_color = Non
     #     img2.mpp = img.mpp*downscale
     return img2
 
-def fit_width(img, new_size, method = Image.Resampling.LANCZOS, fill_color = None, **kwargs):
+def fit_width(img, new_size, resize_method = Image.Resampling.LANCZOS, fill_color = None, **kwargs):
     """A wrapper for PIL thumbnail() which returns an image fit to the
     required width with height cropped.padded and metadata retention.
     img: image to be fit
     new_size: tuple pixel size for image returned
-    method: PIL.Image resampling method passed to PIL thumbnail(). Default Image.Resampling.LANCZOS
+    resize_method: PIL.Image resampling method passed to PIL thumbnail(). Default Image.Resampling.LANCZOS
     fill_color: The image will be pasted on a background of this color. Default #ffffff
     returns: downscaled PIL image with mpp scale property recalculated
     """
@@ -72,7 +72,7 @@ def fit_width(img, new_size, method = Image.Resampling.LANCZOS, fill_color = Non
         msg = "Thumbnail: new_size > current size"
         raise ValueError(msg)
     thumb_size = (new_size[0], h1 * w1/new_size[0])
-    img.thumbnail(thumb_size, method)
+    img.thumbnail(thumb_size, resize_method)
     w2, h2 = img.size
     downscale = w1/w2
     if fill_color == None:
@@ -92,19 +92,19 @@ def fit_width(img, new_size, method = Image.Resampling.LANCZOS, fill_color = Non
     #     img2.mpp = img.mpp*downscale
     return img2
 
-def thumb_image(img, new_size, method = Image.Resampling.LANCZOS, **kwargs):
+def thumb_image(img, new_size, resize_method = Image.Resampling.LANCZOS, **kwargs):
     """A wrapper for PIL thumbnail() which returns a thumbnailed image 
     of maximum new_size with mpp scale information retention.
     img: image to be fit
     new_size: tuple pixel size for max dimensions of image returned
-    method: PIL.Image resampling method passed to PIL thumbnail(). Default Image.Resampling.LANCZOS
+    resize_method: PIL.Image resampling method passed to PIL thumbnail(). Default Image.Resampling.LANCZOS
     returns: downscaled PIL image with mpp scale property recalculated
     """
     w1, h1 = img.size
     if new_size[0] > w1 and new_size[1] > h1:
         msg = "Thumbnail: new_size > current size"
         raise ValueError(msg)
-    img.thumbnail(new_size, method)
+    img.thumbnail(new_size, resize_method)
     w2, h2 = img.size
     downscale = max(w1/w2, h1/h2)
     if "mpp" in img.info:
@@ -115,18 +115,18 @@ def thumb_image(img, new_size, method = Image.Resampling.LANCZOS, **kwargs):
 
 def add_scalebar(img, scale_bar = 100, sb_ratio = 50, sb_mpp = None, sb_color = "#000000", 
                  sb_pad = 3, sb_position = "bl", sb_label = False, sb_label_size = None, **kwargs):
-    """Add a scalebar to image file.
+    """Add a scalebar to image.
     Scale information is supplied or taken from image.info["mpp"].
     Scale information in retained in returned image.
     img: PIL image to add scale bar to.
     sb: length in um of scalebar. default 100um
-    ratio: height of scalebar relative to image height. default 50
-    mpp: microns per pixel scale to use. If not supplied, img.into["mpp"] will be used.
-    color: color of scalebar
-    pad: distance of scalebar from image edge (px)
-    position: position of scalebar (string: 'bl', 'tl', 'br', 'tr')
-    label: add a size label to sb (binary)
-    label_size: in pixels
+    sb_ratio: height of scalebar relative to image height. default 50
+    sb_mpp: microns per pixel scale to use. If not supplied, img.into["mpp"] will be used.
+    sb_color: color of scalebar
+    sb_pad: distance of scalebar from image edge (px)
+    sb_position: position of scalebar (string: 'bl', 'tl', 'br', 'tr')
+    sb_label: add a size label to sb (binary)
+    sb_label_size: in pixels
     returns: PIL image with mpp data retained"""
     if sb_mpp is not None:
         img.info["mpp"] = mpp # should we set this??
@@ -135,7 +135,7 @@ def add_scalebar(img, scale_bar = 100, sb_ratio = 50, sb_mpp = None, sb_color = 
     # elif hasattr(img,"mpp"):
     #     mpp = img.mpp
     else:
-        msg = "No mpp data."
+        msg = "No scale data (mpp in PIL info or set sb_mpp)."
         raise ValueError(msg)
     draw = ImageDraw.Draw(img)
     if scale_bar in ["Auto", "auto"]:
@@ -171,7 +171,7 @@ def add_scalebar(img, scale_bar = 100, sb_ratio = 50, sb_mpp = None, sb_color = 
         if scale_bar>=1000:
             sb_text = f"{round(scale_bar/1000,1)}mm"
         else:
-            sb_text = f"{round(scale_bar)}um"
+            sb_text = f"{round(scale_bar)}µm"
         _, _, width, height = draw.textbbox((0,0), sb_text, font=font) 
         # returns (left, top, right, bottom) of bounding box
         if width > sb_px_x: # label is longer than the scalebar therefore will overflow image
@@ -201,6 +201,7 @@ def apply_border(img, bw = 2, b_color = "#000000", border_crop = "width", **kwar
     img: image to apply border to
     bw: border width (pixels) default 2
     b_color: border color
+    border_crop: method to fit image into border. default ensures width is preserved
     returns: image of same dimensions with PIL mpp data adjusted"""
     w1, h1 = img.size
     if border_crop == "width":
@@ -224,11 +225,6 @@ def apply_border(img, bw = 2, b_color = "#000000", border_crop = "width", **kwar
     img2.paste(img, (bw,bw), None)
     #img.info["mpp"] is recalculated in fitting function and can be used directly here
     img2.info = img.info
-    # if hasattr(img,"mpp"):
-    #     #img.mpp is recalculated in fitting function and can be used directly here
-    #     img2.mpp = img.mpp
-    # if hasattr(img, "fill_color"):
-    #         img2.fill_color = img.fill_color
     return img2
     
 def apply_wb(img, wb, use_wb, **kwargs):
@@ -238,22 +234,61 @@ def apply_wb(img, wb, use_wb, **kwargs):
     new = np.clip(np.array(img)*wb[np.newaxis,np.newaxis,:],0,255)
     img2 = Image.fromarray(new.astype(np.uint8))
     img2.info = img.info
+    # apply wb to fill_color
     if "fill_color" in img2.info:
         if isinstance(use_wb, float):
             img2.info["fill_color"] = tuple(np.clip(np.array(img2.info["fill_color"])*wb,0,255).astype(int))
         else:
             img2.info["fill_color"] = (255,255,255,255)
-        #pass
-        # apply wb to fill_color
-    # if hasattr(img,"mpp"):
-    #     img2.mpp = img.mpp
     return img2
 
+def add_label(img, label = None, label_xpad = 5, label_ypad = 5, 
+              label_position = "br", label_size = "auto", label_color = "#000000", **kwargs):
+    """Add a label to image.
+    img: PIL image to add label to.
+    label: string to add
+    label_xpad: 
+    label_ypad:
+    label_color: color of label
+    label_position: position of label (string: 'bl', 'tl', 'br', 'tr')
+    label_size: in pixels
+    returns: PIL image with mpp data retained"""
+
+    if label == None or label == "":
+        return img
+
+    if str(label_size).lower() in ["auto"]:
+        label_size = img.height // 12
+        # track sb position and shrink label to not overlap?
+        
+    draw = ImageDraw.Draw(img)
+    font = ImageFont.truetype(matplotlib.font_manager.findfont(None), label_size)
+    
+    if "r" in label_position:
+        anchor = "r"
+        text_x =  img.width - label_xpad
+    else:
+        anchor = "l"
+        text_x =  label_xpad
+        
+    if "t" in label_position:
+        anchor += "t"#"a"
+        text_y =  label_ypad
+    else:
+        anchor += "b"#"d"
+        text_y =  img.height - label_ypad
+
+    draw.text((text_x,text_y), label, font=font, anchor=anchor, fill=label_color)
+    return img
+    
+
+              
 # class wrapper for openslide object with added picture output formatting functions
 class slide_obj:
     openslide_imported = False
     
-    def __init__(self, file, rotation = 0, mirror = False, zoom = (0.5,0.5), crop = ((0.5,0.5),1,1), mpp_x = None):
+    def __init__(self, file, rotation = 0, mirror = False, zoom = (0.5,0.5), 
+                 crop = ((0.5,0.5),1,1), mpp_x = None, wb_point = None):
         if not slide_obj.openslide_imported:
             global openslide
             if hasattr(os, 'add_dll_directory'):
@@ -282,7 +317,8 @@ class slide_obj:
         self.mirror = mirror if pd.notnull(mirror) else False
         self.crop = eval(str(crop)) if pd.notnull(crop) else ((0.5,0.5),1,1)
         self.zoom_point = eval(str(zoom)) if pd.notnull(zoom) else (0.5,0.5)
-        self.fill_color = self._get_fill_color()
+        self.wb_point = eval(str(wb_point)) if pd.notnull(wb_point) else None
+        self.fill_color = self._get_fill_color(self.wb_point)
         self.gamma = 1.0 # Experimental
         self.wb = self._get_wb()
     
@@ -296,14 +332,15 @@ class slide_obj:
         self.slide.close()
         self.slide = None
     
-    def _get_fill_color(self, where = "side", sample_width = 10):
-        """ Calculate an average color (average of each chanel) from the edge 
+    def _get_fill_color(self, wb_point = "side", wb_sample_width = 10):
+        """ Calculate an average color (median of each chanel) from the edge 
             of the slide which is assumed to be a blank background. This is 
             used for filling the edges of the image on crop and rotation and 
             white balance calculation.
             Default is the median px of a 10px strip from both the left and right of the slide.
+            A point (wb_point) can be specified from which a 300um x 300um square is sampled.
             """
-        if where == "top":
+        if wb_point in ["Top", "top"]:
             # This uses a single pixel strip from the top of the slide
             # Not great results with OS-1 as image extends beyond glass
             # so use left and right for higher chance of clean background
@@ -315,18 +352,26 @@ class slide_obj:
 
             # Find an average pixel across this strip. Here using 50 percentile so can adjust.
             fill_color = tuple(np.percentile(np.array(temp_img)[0,:], 50, axis=0).astype(int))
-        else:
+        elif wb_point is not None and (type(wb_point) == tuple or "(" in wb_point):
+            wb_point = eval(str(wb_point)) # from excel will be str
+            ### get a 30x30 image of 300um at wb_point
+            img = self._get_sub_image((30,30), image_centre = wb_point, 
+                                      true_size = 300, use_wb = False, 
+                                      gamma = 1, fill_color = "#ffffff")
+            img_data = np.array(img)
+            fill_color = tuple(np.percentile(img_data[:,:], 50, axis=(0,1)).astype(int))
+        else: # default sides of slide
             # Calculate downsample for >=1000 px strip
             downsample = self.slide.dimensions[1]/1000
             level = self.slide.get_best_level_for_downsample(downsample)
             level_downsample = self.slide.level_downsamples[level]
             
-            # Get left hand strip of width sample_width
+            # Get left hand strip of width wb_sample_width
             img_data = np.array(self.slide.read_region((0, 0), 
-                                                           level, (sample_width,self.slide.level_dimensions[level][1])))
-            # Get right hand strip of width sample_width
-            img_data2 = np.array(self.slide.read_region((self.slide.dimensions[0]-int(sample_width*level_downsample), 0), 
-                                                            level, (sample_width,self.slide.level_dimensions[level][1])))
+                                                           level, (wb_sample_width,self.slide.level_dimensions[level][1])))
+            # Get right hand strip of width wb_sample_width
+            img_data2 = np.array(self.slide.read_region((self.slide.dimensions[0]-int(wb_sample_width*level_downsample), 0), 
+                                                            level, (wb_sample_width,self.slide.level_dimensions[level][1])))
             # Append two samples for averaging
             img_data = np.append(img_data, img_data2, axis = 1)
 
@@ -343,11 +388,11 @@ class slide_obj:
         wb = tuple(255/i for i in self.fill_color)
         return wb
     
-    def get_raw_overview_image(self, image_size = (500,500), sb=None):
+    def get_raw_overview_image(self, image_size = (500,500), scale_bar=None, **kwargs):
         """ Return a PIL.Image containing an RGBA thumbnail of the slide.
             Rotations and crop are not applied.
-            size:     overall dimensions of the image.
-            sb:       size of scalebar in um.
+            size:       overall dimensions of the image.
+            scale_bar:  size of scalebar in um.
         """
         downsample = max(*(dim / thumb for dim, thumb in zip(self.slide.dimensions, image_size)))
         level = self.slide.get_best_level_for_downsample(downsample)
@@ -362,8 +407,8 @@ class slide_obj:
         #img.mpp = mpp_x
         img.info["mpp"] = mpp_x
         img = thumb_image(img, image_size)
-        if sb:
-            img = add_scalebar(img, sb=sb)        
+        if scale_bar:
+            img = add_scalebar(img, scale_bar=scale_bar, **kwargs)        
         return img
 
     def get_macro_image(self, max_size = 500):
@@ -392,6 +437,7 @@ class slide_obj:
         if true_size is None:
             true_size = tuple(i * self.mpp_x for i in self.slide.dimensions)
         elif type(true_size) == int or type(true_size) == float:
+            # if one dimension given calculate second at correct ratio
             true_size = (true_size,true_size*(image_height/image_width))
         true_width = true_size[0]
         true_height = true_size[1]
@@ -507,11 +553,30 @@ class slide_obj:
         return self._get_sub_image(image_size,
                                   rotation = rotation, mirror = mirror, **kwargs)
     
-    def _relative_to_l0(self, rel):
-        return (rel[0]*self.slide.dimensions[0], rel[1]*self.slide.dimensions[1])
+    # def _relative_to_l0(self, rel):
+    #     return (rel[0]*self.slide.dimensions[0], rel[1]*self.slide.dimensions[1])
     
     def _relative_to_true(self, rel):
         return (rel[0]*self.slide.dimensions[0]*self.mpp_x, rel[1]*self.slide.dimensions[1]*self.mpp_x)
+
+    def ndpa_to_relative(self, ndpa_point):
+        """
+        NDPA file co-ordinates are stored in nm from physical slide centre.
+        Slide centre to overview image centre is stored in:
+            hamamatsu.XOffsetFromSlideCentre
+            hamamatsu.YOffsetFromSlideCentre
+        This takes an NDPA point (ie nm from physical slide centre) and
+        returns the point relative to overview image (ie fraction of image 
+        from top left).
+        """
+        # nm from top left
+        # top left in nm
+        wnm = self.slide.dimensions[0] * self.mpp_x * 1000
+        hnm = self.slide.dimensions[1] * self.mpp_x * 1000
+        leftnm = int(self.slide.properties["hamamatsu.XOffsetFromSlideCentre"]) - (wnm / 2)
+        topnm = int(self.slide.properties["hamamatsu.YOffsetFromSlideCentre"]) - (hnm / 2)
+        return ((ndpa_point[0] - leftnm) / wnm, (ndpa_point[1] - topnm) / hnm)
+        
 
     def _rotate_point(self, loc1, rototation = 0, centre = (0,0)):
         rads = radians(rototation)
@@ -522,7 +587,8 @@ class slide_obj:
     
     def get_figure(self, panel_size = (500,500), add_inset = True, inset_size = None, zoom_real_size = 250, 
                    rotation = None, mirror = None, zoom_point = None, crop = None, 
-                   scale_bar = None, inset_scale_bar = None, crop_real_width = None, **kwargs):
+                   scale_bar = None, inset_scale_bar = None, crop_real_width = None, 
+                   **kwargs):
         """
         Returns PIL.Image containing cropped overview image with inset zoom image (add_inset = True).
         If parameters are None, slide_obj parameters are used.
@@ -539,18 +605,20 @@ class slide_obj:
             # calculate inset to be square of min 1/2.5 width or 1/2.5 height of the panel
             inset_dim = int(min(panel_size[0], panel_size[1])/2.5)
             inset_size = (inset_dim, inset_dim)
+
+        base_image = self.get_crop_image(
+                                        panel_size, rotation = rotation, mirror = mirror, 
+                                        crop = crop, scale_bar = scale_bar, crop_real_width = crop_real_width,
+                                        **kwargs)
+
+        base_image = add_label(base_image, **kwargs)
+        base_image = apply_border(base_image, **kwargs)
         
-        base_image = apply_border(self.get_crop_image(
-                                                panel_size, rotation = rotation, mirror = mirror, 
-                                                crop = crop, scale_bar = scale_bar, crop_real_width = crop_real_width,
-                                                **kwargs), **kwargs)
         if add_inset:
             zoomed_image = apply_border(self.get_zoom_image(
                                                 inset_size, zoom_real_size, zoom_point = zoom_point, 
                                                 rotation = rotation, mirror = mirror, 
                                                 scale_bar = inset_scale_bar, **kwargs), **kwargs)
-            base_image.paste(zoomed_image, (int(base_image.width-zoomed_image.width),0))
-            del zoomed_image
             
             relative_zoom_point = tuple(i-j for i, j in zip(zoom_point,crop[0]))
             if mirror:
@@ -573,6 +641,9 @@ class slide_obj:
                 (int((box_x+box_width/2)),
                  int((box_y+box_height/2)))
                 ), outline="black")
+
+            base_image.paste(zoomed_image, (int(base_image.width-zoomed_image.width),0))
+            del zoomed_image
 
         return base_image
     
@@ -597,10 +668,12 @@ class slide_obj:
             inset_dim = int(min(panel_size[0], panel_size[1])/2.5)
             inset_size = (inset_dim, inset_dim)
         
-        zoomed_image = apply_border(self.get_zoom_image(
-                                                panel_size, zoom_real_size, zoom_point = zoom_point, 
-                                                rotation = rotation, mirror = mirror, scale_bar = scale_bar, 
-                                                **kwargs), **kwargs)
+        zoomed_image = self.get_zoom_image(panel_size, zoom_real_size, zoom_point = zoom_point, 
+                                            rotation = rotation, mirror = mirror, scale_bar = scale_bar, 
+                                            **kwargs)
+
+        zoomed_image = add_label(zoomed_image, **kwargs)
+        zoomed_image = apply_border(zoomed_image, **kwargs)
         
         if add_inset:
             base_image = apply_border(self.get_crop_image(
@@ -679,12 +752,18 @@ class pathofigure:
         "inset_size": None,
         "zoom_real_size": 250,
         "inset_scale_bar": "auto",
-        "label_size": None,
+
+        "label": "hmm",
+        "label_size": "auto",
+        "label_position": "br", #bottom right
+        "label_ypad": 5, #px
+        "label_xpad": 5,
+        "label_color": "#000000",
 
         "figsize": (8.27,11.69), #A4 in inches
         "n_x": 4,
         "n_y": 6,
-        "fig_layout": "compressed",
+        "fig_layout": "compressed", 
         "dpi": 300,
 
         # str.format(**globals()) is applied at time of use.
@@ -696,11 +775,12 @@ class pathofigure:
         "mirror": None,
         "crop": None, 
         "zoom_point": None,
+        "wb_point": None,
         "root": None,
         "file": None,
-        "label": None,
         "title2": None,
         "title3": None,
+        "mpp_x": None, # must specify mpp_x scale for creating object from static tif.
     }
 
     @staticmethod
@@ -734,46 +814,81 @@ class pathofigure:
             fig.supxlabel(footer)
 
         for index, row in df.iterrows():
-            # this doesn't work on a df (cant fill with tuple) so running here on series
-            row = row.reindex(row.index.union(defaults.index))
-            row = row.fillna(defaults.dropna())
-            row = row.replace(np.nan, None)
-            
             ax = axs.ravel()[row.get("order")]
-            if pd.notnull(row.get("label")):
-                ax.set_title(row["label"], y=0, loc="right", pad=2, wrap=True, fontsize = row["label_size"])
+            img = pathofigure.panel_from_row(row)
+            ax.imshow(img)
+            img.close()
+            del img
 
-            if pd.notnull(row.get("file")):
-
-                with slide_obj(Path(row.get("root",""),row.get("file"))) as sld:
+                # # Use literal_eval to transform any parameters that have been imported from Excel
+                # # as str. Force to str to handle any non-Excel data.
+                # to_eval = ["rotation", "crop", "panel_size", "inset_size", "zoom_point", "wb_point"]
+                # for k in to_eval:
+                #     if pd.notnull(row[k]):
+                #         row[k] = literal_eval(str(row[k]))
+                # with slide_obj(Path(row.get("root",""),row.get("file")), wb_point = row["wb_point"]) as sld:
                     
-                    # Use literal_eval to transform any parameters that have been imported from Excel
-                    # as str. Force to str to handle any non-Excel data.
-                    to_eval = ["rotation", "crop", "panel_size", "inset_size", "zoom_point"]
-                    for k in to_eval:
-                        if pd.notnull(row[k]):
-                            row[k] = literal_eval(str(row[k]))
+                #     if row["fig_type"] in ["inverted","Inverted"]:
+                #         # Send all of row (unpacked) to be passed on to sub-functions.
+                #         # This means parameters like border width get passed on.
+                #         image = sld.get_figure_inverted(**row)
                     
-                    if row["fig_type"] in ["inverted","Inverted"]:
-                        # Send all of row (unpacked) to be passed on to sub-functions.
-                        # This means parameters like border width get passed on.
-                        image = sld.get_figure_inverted(**row)
+                #     elif row["fig_type"] in ["raw","Raw"]:
+                #         image = apply_border(sld.get_raw_overview_image(
+                #             image_size = row["panel_size"], sb=row["scale_bar"]))
                     
-                    elif row["fig_type"] in ["raw","Raw"]:
-                        image = apply_border(sld.get_raw_overview_image(
-                            image_size = row["panel_size"], sb=row["scale_bar"]))
+                #     elif row["fig_type"] in ["slide","Slide"]:
+                #         image = apply_border(sld.get_summary_figure(
+                #             width = row["panel_size"][0]))
                     
-                    elif row["fig_type"] in ["slide","Slide"]:
-                        image = apply_border(sld.get_summary_figure(
-                            width = row["panel_size"][0]))
-                    
-                    else:
-                        image = sld.get_figure(**row)
+                #     else:
+                #         image = sld.get_figure(**row)
                         
-                    ax.imshow(image)
-                    image.close()
-                    del image
+            #         ax.imshow(image)
+            #         image.close()
+            #         del image
+                    
+            # if pd.notnull(row.get("label")):
+            #     ax.set_title(row["label"], y=row["label_y"], loc=row["label_location"],
+            #                  pad=row["label_ypad"], wrap=True, fontsize = row["label_size"])
+                
         return fig
+
+    @staticmethod
+    def panel_from_row(row):
+        defaults = pd.Series(pathofigure.fig_defaults)
+        # this doesn't work on a df (can't fill with tuple) so running here on series
+        row = row.reindex(row.index.union(defaults.index))
+        row = row.fillna(defaults.dropna())
+        row = row.replace(np.nan, None)
+        
+        # Use literal_eval to transform any parameters that have been imported from Excel
+        # as str. Force to str to handle any non-Excel data.
+        to_eval = ["rotation", "crop", "panel_size", "inset_size", "zoom_point", "wb_point"]
+        for k in to_eval:
+            if pd.notnull(row[k]):
+                row[k] = literal_eval(str(row[k]))
+        
+        if pd.notnull(row.get("file")):
+            with slide_obj(Path(row.get("root",""),row.get("file")), wb_point = row["wb_point"], mpp_x = row["mpp_x"]) as sld:
+                
+                if row["fig_type"] in ["inverted","Inverted"]:
+                    # Send all of row (unpacked) to be passed on to sub-functions.
+                    # This means parameters like border width get passed on.
+                    image = sld.get_figure_inverted(**row)
+                
+                elif row["fig_type"] in ["raw","Raw"]:
+                    image = apply_border(sld.get_raw_overview_image(
+                        image_size = row["panel_size"], sb=row["scale_bar"]))
+                
+                elif row["fig_type"] in ["slide","Slide"]:
+                    image = apply_border(sld.get_summary_figure(
+                        width = row["panel_size"][0]))
+                
+                else:
+                    image = sld.get_figure(**row)
+        return image
+
     
     # @staticmethod
     # def overview_page(df, title = None, pgnum = None):
@@ -820,12 +935,25 @@ class pathofigure:
 # end pathofigure
 
 class pathoverview_interactive_fig:
-    def __init__(self, filename, rotation = 0, mirror = False, zoom = (0,0), crop = None):
+    def __init__(self):#, filename, rotation = 0, mirror = False, zoom = (0,0), crop = None):
         with plt.ioff():
             self.fig = plt.figure(figsize=(8,8))
         self.fig.canvas.toolbar_visible = False
         self.ax = self.fig.add_subplot()#1, 1, 1)
-        self.load_image(filename, rotation, mirror, zoom, crop)
+        # don't load image here, use placeholder image then call load image after load data
+        self.image = Image.new('RGBA', (500,500), "#000000")
+        self.rotation = 0
+        self.expand_rotation = True
+        self.mirror = False
+        # middle of the zoom image relative to the center of image1
+        self.zoom_point = (0,0)
+        self.crop = None
+        self.crop_bounds = None
+        self.width = self.image.width
+        self.height = self.image.height
+        self.zoom_dot = None
+        self.centre = (0,0)
+        #self.load_image(filename, rotation, mirror, zoom, crop)
         self.draw_fig()
         self.click_listen = self.fig.canvas.mpl_connect('button_press_event', self.onclick)
         
@@ -838,22 +966,29 @@ class pathoverview_interactive_fig:
     def close(self):
         self.fig.close()
 
-    def load_image(self, filename, rotation = 0, mirror = False, zoom = (0,0), crop = None):
-        with slide_obj(Path(filename)).get_raw_overview_image() as img:
-            self.image = img
-        self.rotation = rotation
-        self.expand_rotation = True
-        self.mirror = mirror
-        # middle of the zoom image relative to the center of image1
-        self.zoom_point = zoom
-        self.crop = crop
-        self.crop_bounds = None
-        self.width = self.image.width
-        self.height = self.image.height
-        self.zoom_dot = None
-        self.centre = (0,0)
-    
-    def load_data(self,row):
+    # def load_image(self, filename, rotation = 0, mirror = False, zoom = (0,0), crop = None, mpp_x = None):
+    #     with slide_obj(Path(filename), mpp_x = mpp_x).get_raw_overview_image() as img:
+    #         self.image = img
+        # self.rotation = rotation
+        # self.expand_rotation = True
+        # self.mirror = mirror
+        # # middle of the zoom image relative to the center of image1
+        # self.zoom_point = zoom
+        # self.crop = crop
+        # self.crop_bounds = None
+        # self.width = self.image.width
+        # self.height = self.image.height
+        # self.zoom_dot = None
+        # self.centre = (0,0)
+
+    def load_slide(self, row, update = True):
+        self.reset_fig()
+        if Path(row['root'], row['file']) is not None:
+            with slide_obj(Path(row['root'], row['file']), mpp_x = row.get("mpp_x", None)).get_raw_overview_image() as img:
+                self.image = img
+                self.height = self.image.height
+                self.width = self.image.width
+        # un pandas these:
         if pd.notnull(row["rotation"]): self.rotation = float(row["rotation"])
         if pd.notnull(row["mirror"]): self.mirror = row["mirror"]
         # excel import will be str, direct from interactive will be tuple. Force to str then eval to tuple
@@ -875,7 +1010,31 @@ class pathoverview_interactive_fig:
             zoom_point = eval(str(row["zoom_point"]))            
             zoom_point = self.relative_to_point(zoom_point)
             self.zoom_point = zoom_point
-        self.update_fig()
+        # self.update_fig()
+    
+    # def load_data(self,row):
+    #     if pd.notnull(row["rotation"]): self.rotation = float(row["rotation"])
+    #     if pd.notnull(row["mirror"]): self.mirror = row["mirror"]
+    #     # excel import will be str, direct from interactive will be tuple. Force to str then eval to tuple
+    #     if pd.notnull(row["crop"]): 
+    #         crop = eval(str(row["crop"]))
+    #         crop_point = self.relative_to_point(crop[0])
+    #         self.crop = (crop_point, crop[1], crop[2])
+    #         crop_plot = self.rotate_from_image(crop_point)
+    #         width = crop[1]*self.width
+    #         height = crop[2]*self.height
+    #         # (xmin, xmax, ymin, ymax) 
+    #         self.crop_bounds = (
+    #             crop_plot[0]-(width/2),
+    #             crop_plot[0]+(width/2),
+    #             crop_plot[1]-(height/2),
+    #             crop_plot[1]+(height/2))
+    #     # make this correct for plotting
+    #     if pd.notnull(row["zoom_point"]): 
+    #         zoom_point = eval(str(row["zoom_point"]))            
+    #         zoom_point = self.relative_to_point(zoom_point)
+    #         self.zoom_point = zoom_point
+    #     # self.update_fig()
 
     # @output.capture()
     def draw_fig(self):
@@ -969,7 +1128,7 @@ class pathoverview_interactive_fig:
         self.crop = None
         self.crop_bounds = None
         self.mirror = False
-        self.update_fig()
+        # self.update_fig()
 
     def clear_rect(self):
         self.crop = None
