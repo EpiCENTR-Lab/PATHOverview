@@ -1,7 +1,7 @@
 ## github.com/EpiCENTR-Lab/PATHOverview
 ## PATHOverview was created to arrange histology images for our publication:
 ## www.frontiersin.org/articles/10.3389/fonc.2023.1156743/full
-## If you use PATHOverview please cite our paper.
+## If you use PATHOverview please cite it via our paper.
 
 
 from math import degrees, atan2, radians, cos, sin, ceil
@@ -21,7 +21,9 @@ matplotlib.use('nbagg')
 plt.ioff()
 
 # Openslide is imported with the first slide object to allow this path to be set after module import
-# Windows: this must be overwritten with the path to openslide\bin before first slide object creation
+# With older OpenSlide install methods on windows, the path to your OpenSlide binaries must be defined 
+# before first slide_obj creation.
+# This is not requred/used on mac or newer OpenSlide installs.
 OPENSLIDE_PATH = None
 
 # Image manipulation functions with mpp scale retention
@@ -289,18 +291,28 @@ class slide_obj:
     
     def __init__(self, file, rotation = 0, mirror = False, zoom = (0.5,0.5), 
                  crop = ((0.5,0.5),1,1), mpp_x = None, wb_point = None):
+        # Openslide was imported at the first object creation to allow for calling
+        # os.add_dll_directory(Path(OPENSLIDE_PATH)) with older windows binaries installs
+        # this is no longer required but will be used when OPENSLIDE_PATH is defined.
         if not slide_obj.openslide_imported:
             global openslide
-            if hasattr(os, 'add_dll_directory'):
-                # Python >= 3.8 on Windows
-                if OPENSLIDE_PATH is None or OPENSLIDE_PATH == "":
-                    msg = "Please specify path to OpenSlide\\bin"
-                    raise ModuleNotFoundError(msg)
+            if OPENSLIDE_PATH is None or OPENSLIDE_PATH == "":
+                import openslide
+                slide_obj.openslide_imported = True
+            else:
                 with os.add_dll_directory(Path(OPENSLIDE_PATH)):
                     import openslide
-            else:
-                import openslide
-            slide_obj.openslide_imported = True
+                slide_obj.openslide_imported = True
+            # if hasattr(os, 'add_dll_directory'):
+            #     # Python >= 3.8 on Windows
+            #     if OPENSLIDE_PATH is None or OPENSLIDE_PATH == "":
+            #         msg = "Please specify path to OpenSlide\\bin"
+            #         raise ModuleNotFoundError(msg)
+            #     with os.add_dll_directory(Path(OPENSLIDE_PATH)):
+            #         import openslide
+            # else:
+            #     import openslide
+            # slide_obj.openslide_imported = True
         self.filename = Path(file)
         #self.slide = openslide.OpenSlide(self.filename)
         # This should include support for image files with similar api
@@ -576,6 +588,24 @@ class slide_obj:
         leftnm = int(self.slide.properties["hamamatsu.XOffsetFromSlideCentre"]) - (wnm / 2)
         topnm = int(self.slide.properties["hamamatsu.YOffsetFromSlideCentre"]) - (hnm / 2)
         return ((ndpa_point[0] - leftnm) / wnm, (ndpa_point[1] - topnm) / hnm)
+
+    def relative_to_ndpa(self, relative_point):
+        """
+        NDPA file co-ordinates are stored in nm from physical slide centre.
+        Slide centre to overview image centre is stored in:
+            hamamatsu.XOffsetFromSlideCentre
+            hamamatsu.YOffsetFromSlideCentre
+        This takes a point relative to overview image (ie fraction of image 
+        from top left) and returns an NDPA point (ie nm from physical slide 
+        centre).
+        """
+        # nm from top left
+        # top left in nm
+        wnm = self.slide.dimensions[0] * self.mpp_x * 1000
+        hnm = self.slide.dimensions[1] * self.mpp_x * 1000
+        leftnm = int(self.slide.properties["hamamatsu.XOffsetFromSlideCentre"]) - (wnm / 2)
+        topnm = int(self.slide.properties["hamamatsu.YOffsetFromSlideCentre"]) - (hnm / 2)
+        return ((relative_point[0] * wnm) + leftnm, (relative_point[1] * hnm) + topnm)
         
 
     def _rotate_point(self, loc1, rototation = 0, centre = (0,0)):
@@ -753,7 +783,7 @@ class pathofigure:
         "zoom_real_size": 250,
         "inset_scale_bar": "auto",
 
-        "label": "hmm",
+        "label": None,
         "label_size": "auto",
         "label_position": "br", #bottom right
         "label_ypad": 5, #px
@@ -1052,7 +1082,7 @@ class pathoverview_interactive_fig:
         self.ax.set_ylim(fig_lim, -fig_lim) #origin set to top left for images so y = backwards
         self.centre_dot = self.ax.scatter(self.centre[0],self.centre[1], color="r")
         zoom_loc = self.rotate_from_image(self.zoom_point)
-        self.zoom_dot = self.ax.scatter(zoom_loc[0], zoom_loc[1], marker="x", color="g")
+        self.zoom_dot = self.ax.scatter(zoom_loc[0], zoom_loc[1], marker="x", color="k")
         self.r_selector = mwidgets.RectangleSelector(
             self.ax, self.rect_callback, interactive=True, ignore_event_outside=True, 
             use_data_coordinates=True, button = 1)
@@ -1143,3 +1173,97 @@ class pathoverview_interactive_fig:
             crop_data = None
         return {"rotation":self.rotation, "mirror":self.mirror, 
                 "zoom_point":self.point_to_relative(self.zoom_point), "crop":crop_data}
+
+ndpa_template = """<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<annotations>
+	<ndpviewstate id="1">
+		<title>zoom</title>
+		<details/>
+		<coordformat>nanometers</coordformat>
+		<lens>1</lens>
+		<x>0</x>
+		<y>0</y>
+		<z>0</z>
+		<showtitle>1</showtitle>
+		<showhistogram>0</showhistogram>
+		<showlineprofile>0</showlineprofile>
+		<annotation type="pin" displayname="AnnotatePin" color="#ff0000">
+			<x>13077248</x>
+			<y>-1711471</y>
+			<icon>pinred</icon>
+			<stricon>iconpinred</stricon>
+		</annotation>
+	</ndpviewstate>
+	<ndpviewstate id="2">
+		<title>crop</title>
+		<details/>
+		<coordformat>nanometers</coordformat>
+		<lens>1</lens>
+		<x>0</x>
+		<y>0</y>
+		<z>0</z>
+		<showtitle>1</showtitle>
+		<showhistogram>0</showhistogram>
+		<showlineprofile>0</showlineprofile>
+		<annotation type="freehand" displayname="AnnotateRectangle" color="#000000">
+			<measuretype>0</measuretype>
+			<closed>1</closed>
+			<pointlist>
+				<point>
+					<x>9784406</x>
+					<y>-4753072</y>
+				</point>
+				<point>
+					<x>9784406</x>
+					<y>843571</y>
+				</point>
+				<point>
+					<x>18943280</x>
+					<y>843571</y>
+				</point>
+				<point>
+					<x>18943280</x>
+					<y>-4753072</y>
+				</point>
+			</pointlist>
+			<specialtype>rectangle</specialtype>
+			<specialtype>rectangle</specialtype>
+		</annotation>
+	</ndpviewstate>
+	<ndpviewstate id="3">
+		<title>rotation</title>
+		<details/>
+		<coordformat>nanometers</coordformat>
+		<lens>1</lens>
+		<x>0</x>
+		<y>0</y>
+		<z>0</z>
+		<showtitle>1</showtitle>
+		<showhistogram>0</showhistogram>
+		<showlineprofile>0</showlineprofile>
+		<annotation type="linearmeasure" displayname="AnnotateRuler" color="#000000">
+			<x1>10606418</x1>
+			<y1>-537144</y1>
+			<x2>18036854</x2>
+			<y2>-537144</y2>
+		</annotation>
+	</ndpviewstate>
+	<ndpviewstate id="4">
+		<title>crop</title>
+		<details />
+		<coordformat>nanometers</coordformat>
+		<lens>1</lens>
+		<x>0</x>
+		<y>0</y>
+		<z>0</z>
+		<showtitle>1</showtitle>
+		<showhistogram>0</showhistogram>
+		<showlineprofile>0</showlineprofile>
+		<annotation type="pin" displayname="AnnotatePin" color="#ff0000">
+			<x>4321</x>
+			<y>-1711471</y>
+			<icon>pinred</icon>
+			<stricon>iconpinred</stricon>
+		</annotation>
+	</ndpviewstate>
+</annotations>"""
