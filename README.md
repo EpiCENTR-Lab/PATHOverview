@@ -60,5 +60,6 @@ pip install openslide-python openslide-bin pillow openpyxl matplotlib pandas jup
 - [x] Draw parameters from slide_df on interactive figure where already set
 - [x] Add white balance
 - [x] Read parameters from NDPA files to enable more accurate zoom etc.
+- [ ] Write ndpa files from interactive notebook
 - [ ] Check compatability with other slide formats
 - [ ] assess improvements to memory usage and speed
