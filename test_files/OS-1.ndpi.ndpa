@@ -1,30 +1,29 @@
-<?xml version="1.0" encoding="utf-8" standalone="yes"?>
 <annotations>
 	<ndpviewstate id="1">
 		<title>zoom</title>
-		<details/>
+		<details />
 		<coordformat>nanometers</coordformat>
-		<lens>3.143789</lens>
-		<x>11254765</x>
-		<y>2197231</y>
+		<lens>1</lens>
+		<x>0</x>
+		<y>0</y>
 		<z>0</z>
 		<showtitle>1</showtitle>
 		<showhistogram>0</showhistogram>
 		<showlineprofile>0</showlineprofile>
 		<annotation type="pin" displayname="AnnotatePin" color="#ff0000">
-			<x>10122368</x>
-			<y>3100100</y>
+			<x>-1308027.6123450045</x>
+			<y>-12499869.151110506</y>
 			<icon>pinred</icon>
 			<stricon>iconpinred</stricon>
 		</annotation>
 	</ndpviewstate>
 	<ndpviewstate id="2">
 		<title>crop</title>
-		<details/>
+		<details />
 		<coordformat>nanometers</coordformat>
-		<lens>3.369244</lens>
-		<x>11217975</x>
-		<y>2272856</y>
+		<lens>1</lens>
+		<x>0</x>
+		<y>0</y>
 		<z>0</z>
 		<showtitle>1</showtitle>
 		<showhistogram>0</showhistogram>
@@ -34,20 +33,20 @@
 			<closed>1</closed>
 			<pointlist>
 				<point>
-					<x>7275205</x>
-					<y>2835460</y>
+					<x>9784406</x>
+					<y>-4753072</y>
 				</point>
 				<point>
-					<x>9309007</x>
-					<y>5512667</y>
+					<x>9784406</x>
+					<y>843571</y>
 				</point>
 				<point>
-					<x>13980593</x>
-					<y>1963628</y>
+					<x>18943280</x>
+					<y>843571</y>
 				</point>
 				<point>
-					<x>11946792</x>
-					<y>-713578</y>
+					<x>18943280</x>
+					<y>-4753072</y>
 				</point>
 			</pointlist>
 			<specialtype>rectangle</specialtype>
@@ -55,22 +54,21 @@
 		</annotation>
 	</ndpviewstate>
 	<ndpviewstate id="3">
-		<title>background</title>
-		<details/>
+		<title>rotation</title>
+		<details />
 		<coordformat>nanometers</coordformat>
-		<lens>1.494104</lens>
-		<x>12248088</x>
-		<y>3010485</y>
+		<lens>1</lens>
+		<x>0</x>
+		<y>0</y>
 		<z>0</z>
 		<showtitle>1</showtitle>
 		<showhistogram>0</showhistogram>
 		<showlineprofile>0</showlineprofile>
-		<annotation type="pin" displayname="AnnotatePin" color="#ff0000">
-			<x>8243779</x>
-			<y>5157304</y>
-			<icon>pinred</icon>
-			<stricon>iconpinred</stricon>
+		<annotation type="linearmeasure" displayname="AnnotateRuler" color="#000000">
+			<x1>10606418</x1>
+			<y1>-537144</y1>
+			<x2>18036854</x2>
+			<y2>-537144</y2>
 		</annotation>
 	</ndpviewstate>
 </annotations>
-
