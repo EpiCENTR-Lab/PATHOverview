@@ -290,7 +290,7 @@ class slide_obj:
     openslide_imported = False
     
     def __init__(self, file, rotation = 0, mirror = False, zoom = (0.5,0.5), 
-                 crop = ((0.5,0.5),1,1), mpp_x = None, wb_point = None):
+                 crop = ((0.5,0.5),1,1), mpp_x = None, wb_point = None, load_ndpa = False):
         # Openslide was imported at the first object creation to allow for calling
         # os.add_dll_directory(Path(OPENSLIDE_PATH)) with older windows binaries installs
         # this is no longer required but will be used when OPENSLIDE_PATH is defined.
@@ -330,6 +330,8 @@ class slide_obj:
         self.crop = eval(str(crop)) if pd.notnull(crop) else ((0.5,0.5),1,1)
         self.zoom_point = eval(str(zoom)) if pd.notnull(zoom) else (0.5,0.5)
         self.wb_point = eval(str(wb_point)) if pd.notnull(wb_point) else None
+        if load_ndpa == True:
+            self.read_ndpa()
         self.fill_color = self._get_fill_color(self.wb_point)
         self.gamma = 1.0 # Experimental
         self.wb = self._get_wb()
@@ -343,9 +345,95 @@ class slide_obj:
     def close(self):
         self.slide.close()
         self.slide = None
+
+    def read_ndpa(self, ndpa_file = None):
+        """ Read .ndpa file with the same name as .ndpi slide to extract zoom, 
+            crop, rotation and background information.
+            Annotation information extracted:
+              - zoom_point: must be a pin named 'zoom'
+              - crop: can be
+                    ~ rectangle named 'crop'. This will set rotation and crop bounds
+                    ~ pin named 'crop': This will be the centre of a crop box of full 
+                        slide size. Use this if defining fixed 'crop_real_width' figures
+              - rotation: must be a horizontal L to R ruler named 'rotation'. Use this 
+                    when crop not defined or is a pin
+              - background/whitebalance: a pin named 'background'. A 300x300um sample 
+                    will be used to calculate background color 
+            Returns dict containing any of: zoom_point, crop, rotation, wb_point
+        """
+        import xml.etree.ElementTree as ET
+        from math import degrees, atan2, hypot
+        ndpa_file = self.filename.with_suffix(".ndpi.ndpa")
+        
+        if Path.exists(ndpa_file):
+            ndpa_digest = {}
+            ETroot = ET.parse(ndpa_file).getroot()
+            for viewstate in ETroot.findall("ndpviewstate"):
+                title = viewstate.find("title").text
+                ann_type = viewstate.find("annotation").get("displayname")
+                
+                if title == "zoom" and ann_type == "AnnotatePin":
+                    zoom_x = int(float(viewstate.find("annotation").find("x").text))
+                    zoom_y = int(float(viewstate.find("annotation").find("y").text))
+                    zoom_point = self.ndpa_to_relative((zoom_x, zoom_y))
+                    self.zoom_point = zoom_point
+                    ndpa_digest["zoom_point"] = zoom_point
+                    
+                elif title == "crop" and ann_type == "AnnotatePin":
+                    crop_x = int(float(viewstate.find("annotation").find("x").text))
+                    crop_y = int(float(viewstate.find("annotation").find("y").text))
+                    crop_point = self.ndpa_to_relative((crop_x, crop_y))
+                    self.crop = (crop_point,1,1)
+                    ndpa_digest["crop"] = (crop_point,1,1)
+                    
+                elif title == "background" and ann_type == "AnnotatePin":
+                    bg_x = int(float(viewstate.find("annotation").find("x").text))
+                    bg_y = int(float(viewstate.find("annotation").find("y").text))
+                    bg_point = self.ndpa_to_relative((bg_x, bg_y))
+                    self.wb_point = bg_point
+                    ndpa_digest["wb_point"] = bg_point
+                    
+                elif title == "rotation" and ann_type == "AnnotateRuler":
+                    x1 = int(float(viewstate.find("annotation").find("x1").text))
+                    y1 = int(float(viewstate.find("annotation").find("y1").text))
+                    x2 = int(float(viewstate.find("annotation").find("x2").text))
+                    y2 = int(float(viewstate.find("annotation").find("y2").text))
+                    dx = x2 - x1
+                    dy = y2 - y1
+                    rot = degrees(atan2(dy,dx)) % 360
+                    self.rotation = rot
+                    ndpa_digest["rotation"] = rot
+                    
+                elif title == "crop" and ann_type == "AnnotateRectangle":
+                    points = [] # will be top-left, bl, br, tr
+                    for point in viewstate.find("annotation").find("pointlist").iterfind("point"):#.get("pointlist"):
+                        points.append((int(float(point.find("x").text)), int(float(point.find("y").text))))
+                    #do trig for rotation
+                    dx = points[3][0] - points[0][0]
+                    dy = points[3][1] - points[0][1]
+                    rot = degrees(atan2(dy,dx)) % 360
+                    self.rotation = rot
+                    ndpa_digest["rotation"] = rot
+                    #find midpoint
+                    crop_x = (points[0][0] + points[2][0]) / 2
+                    crop_y = (points[0][1] + points[2][1]) / 2
+                    crop_point = self.ndpa_to_relative((crop_x, crop_y))
+                    #find rel width / height
+                    w = hypot(points[3][0] - points[0][0], points[3][1] - points[0][1])
+                    h = hypot(points[1][0] - points[0][0], points[1][1] - points[0][1])
+                    wnm = self.slide.dimensions[0] * self.mpp_x * 1000
+                    hnm = self.slide.dimensions[1] * self.mpp_x * 1000
+                    crop = (crop_point, w/wnm, h/hnm)
+                    self.crop = crop
+                    ndpa_digest["crop"] = (crop_point, w/wnm, h/hnm)
+            return ndpa_digest
+        else:
+            msg = ".ndpa file not found."
+            raise ValueError(msg)
+        
     
     def _get_fill_color(self, wb_point = "side", wb_sample_width = 10):
-        """ Calculate an average color (median of each chanel) from the edge 
+        """ Calculate an average color (median of each channel) from the edge 
             of the slide which is assumed to be a blank background. This is 
             used for filling the edges of the image on crop and rotation and 
             white balance calculation.
@@ -393,10 +481,10 @@ class slide_obj:
         return fill_color
 
     def _get_wb(self):
-        """ Calculate a float for each chanel to multiply fill_color up to white.
+        """ Calculate a float for each channel to multiply fill_color up to white.
             Returns a tuple of floats for RGBA
         """
-        # Find the factor to multiply each chanel up to 255
+        # Find the factor to multiply each channel up to 255
         wb = tuple(255/i for i in self.fill_color)
         return wb
     
@@ -444,6 +532,7 @@ class slide_obj:
     def _get_sub_image(self, image_size, image_centre = (0.5,0.5), 
                       true_size = None, rotation = None, mirror = None, scale_bar = None, 
                         fill_color = "auto", gamma = None, wb = None, use_wb = False, **kwargs):
+        #### Catch if true_size is possible for this image_size given the object resolution ####
         image_width = image_size[0] #300 #px
         image_height = image_size[1]
         if true_size is None:
@@ -471,7 +560,7 @@ class slide_obj:
         # tile comes with zero alpha in areas beyond the image dimension 
         # (we've oversampled to double size to allow cropping) 
         # so if fill_color = auto, paste onto image with slides neutral 
-        # background color calculated on creation
+        # background color calculated on slide_obj creation
         if fill_color is None:
             fill_color = "#ffffff"
         elif fill_color in ["auto","Auto"]:
@@ -494,6 +583,10 @@ class slide_obj:
         crop_x = (w-crop_width)/2
         crop_y = (h-crop_height)/2
         img = img.crop((crop_x, crop_y, w-crop_x, h-crop_y))
+
+        if (img.size[0] < image_size[0]) and (img.size[1] < image_size[1]):
+            msg = "Low resolution. An image of this size cannot be extracted from this file."
+            raise ValueError(msg)
         
         #img.mpp = level_mpp
         img.info["mpp"] = level_mpp
