@@ -11,7 +11,7 @@ Inverted PATHOverview figure:<br>
 ![An example PATHOverview image](test_files/test_image_inverted.png)
 
 An [example output pdf](./test_files/test_output.pdf) is contained in the test_files folder. This has been generated using parameters set in slide_lists_demo.xlsx and our [interactive Jupyter notebook](pathoverview_interactive_example.ipynb). Further examples can be found in our publication linked below.<br>
-Basic usage of PATHOverview is detailed in our [test notebook](pathoverview_basic_use.ipynb). Whole slide files can be listed (and NDPA annotation read) using [PATHOverview_list_files.ipynb](pathoverview_list_files.ipynb). An [interactive Jupyter notebook](pathoverview_interactive_example.ipynb) is provided for setting crop parameters for each slide.<br>
+Basic usage of PATHOverview is detailed in our [test notebook](pathoverview_basic_use.ipynb). Whole slide files can be listed (and .ndpa annotations read) using [PATHOverview_list_files.ipynb](pathoverview_list_files.ipynb). An [interactive Jupyter notebook](pathoverview_interactive_example.ipynb) is provided for rapidly setting crop/zoom parameters for each slide. These produce an easily editable Excel file with figure parameters. [PATHOverview_create_figures.ipynb](pathoverview_create_figures.ipynb) can be used to generate figures directly from the Excel file.<br>
 
 PATHOverview uses OpenSlide ([openslide.org](http://openslide.org)) and its python bindings to access virtual slide images. PATHOverview has been tested on Hamamatsu Nanozoomer NDPI images. The example notebooks require freely available ndpi images [OS-1.ndpi](https://openslide.cs.cmu.edu/download/openslide-testdata/Hamamatsu/) and [OS-2.ndpi](https://openslide.cs.cmu.edu/download/openslide-testdata/Hamamatsu/) from OpenSlide which should be placed in the /test_files folder.<br>
 
@@ -26,33 +26,52 @@ bioRxiv 2023.01.24.520089; doi: https://doi.org/10.1101/2023.01.24.520089
 
 ## Getting started & running examples
 #### Outline
-- Download this repository
-- Install JupyterLab Desktop
-- In JupyterLab: install the required python packages including the openslide-python bindings and OpenSlide binaries
+- Download this repository & example slides
+- Install Jupyter Lab and required packages
+- Launch Jupyter Lab
 - Open pathoverview_basic_use.ipynb
 - Run the example notebook
 
 #### Requirements
 PATHOverview uses OpenSlide to read whole slide images. OpenSlide is installed in two components: the OpenSlide program and openslide-python bindings.
 
-PATHOverview requires OpenSlide and the following python packages: <br>
-openslide-python, pillow, openpyxl, matplotlib, pandas, jupyterlab, ipywidgets, ipympl<br>
+PATHOverview also requires the following python packages: <br>
+pillow, openpyxl, matplotlib, pandas, jupyterlab, ipywidgets, ipympl<br>
 
 
 #### Installation
 
-**Recomended: Jupyter Lab Desktop**<br>
-- Download a zip of the PATHOverview repository and extract to a working folder<br>
+Jupyter Lab Desktop is no longer recommended as it is not actively maintained.
+
+**Recomended: Jupyter Lab Virtual Environment**<br>
+- Download a zip of this PATHOverview repository and extract to a working folder<br>
 - Add the OpenSlide example files [OS-1.ndpi](https://openslide.cs.cmu.edu/download/openslide-testdata/Hamamatsu/) and [OS-2.ndpi](https://openslide.cs.cmu.edu/download/openslide-testdata/Hamamatsu/) to the /test_files folder
-- Install Jupyter Lab Desktop application from:
-https://github.com/jupyterlab/jupyterlab-desktop/releases
-- Run Jupyter Lab Desktop and open a terminal in the program
-- Install required packages with pip from within Jupyter Lab:
+- Install [miniforge conda](https://conda-forge.org/download/)
+- Launch miniforge prompt
+- Create a virtual environment containing python
 ```
-pip install openslide-python openslide-bin pillow openpyxl matplotlib pandas jupyterlab ipywidgets ipympl
+conda create -n pathoverview python
+## For windows arm processors force win-64 emulation 
+## as some packages are missing from win-arm64
+# conda create --platform win-64 -n pathoverview python
 ```
-- Open and Run [pathoverview_basic_use.ipynb](pathoverview_basic_use.ipynb) to test your installation and for a working example of PATHOverview image extraction
-- Open and Run [pathoverview_interactive_example.ipynb](pathoverview_interactive_example.ipynb) for an example interactive figure used to set slide crop parameters
+- Activate the environment
+```
+conda activate pathoverview
+```
+- Install required packages from conda
+```
+conda install pillow openpyxl matplotlib pandas jupyterlab ipywidgets ipympl
+```
+- Install OpenSlide with pip as conda versions are not up-to-date
+```
+pip install openslide-python openslide-bin
+```
+- Navigate to the PATHOverview folder in the command prompt and launch Jupyter Lab (this will launch in a browser window).
+```
+jupyter lab
+```
+- Open and run [pathoverview_basic_use.ipynb](pathoverview_basic_use.ipynb) to test your installation and for a working example of PATHOverview image extraction
 
 
 ### To do:
