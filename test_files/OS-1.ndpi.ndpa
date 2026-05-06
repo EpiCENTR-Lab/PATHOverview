@@ -1,74 +1,110 @@
 <annotations>
 	<ndpviewstate id="1">
-		<title>zoom</title>
+		<title/>
 		<details/>
 		<coordformat>nanometers</coordformat>
-		<lens>1</lens>
-		<x>0</x>
-		<y>0</y>
+		<lens>0.694806</lens>
+		<x>15708142</x>
+		<y>-4257927</y>
 		<z>0</z>
-		<showtitle>1</showtitle>
+		<showtitle>0</showtitle>
+		<showhistogram>0</showhistogram>
+		<showlineprofile>0</showlineprofile>
+		<annotation type="circle" displayname="AnnotateCircle" color="#000000">
+			<x>12913783</x>
+			<y>-7442821</y>
+			<radius>1883456</radius>
+			<measuretype>0</measuretype>
+		</annotation>
+	</ndpviewstate>
+	<ndpviewstate id="2">
+		<title>zoom_1</title>
+		<details/>
+		<coordformat>nanometers</coordformat>
+		<lens>0.694806</lens>
+		<x>15708142</x>
+		<y>-4257927</y>
+		<z>0</z>
+		<showtitle>0</showtitle>
 		<showhistogram>0</showhistogram>
 		<showlineprofile>0</showlineprofile>
 		<annotation type="pin" displayname="AnnotatePin" color="#ff0000">
-			<x>-1308027.6123450045</x>
-			<y>-12499869.151110506</y>
+			<x>10155166</x>
+			<y>-2997380</y>
+			<icon>pinred</icon>
+			<stricon>iconpinred</stricon>
+		</annotation>
+	</ndpviewstate>
+	<ndpviewstate id="3">
+		<title>zoom_2</title>
+		<details/>
+		<coordformat>nanometers</coordformat>
+		<lens>0.694806</lens>
+		<x>15708142</x>
+		<y>-4257927</y>
+		<z>0</z>
+		<showtitle>0</showtitle>
+		<showhistogram>0</showhistogram>
+		<showlineprofile>0</showlineprofile>
+		<annotation type="pin" displayname="AnnotatePin" color="#ff0000">
+			<x>17594256</x>
+			<y>-264821</y>
 			<icon>pinred</icon>
 			<stricon>iconpinred</stricon>
 		</annotation>
 	</ndpviewstate>
 	<ndpviewstate id="4">
-		<title>crop</title>
+		<title>zoom_3</title>
 		<details/>
 		<coordformat>nanometers</coordformat>
-		<lens>2.346592</lens>
-		<x>14140944</x>
-		<y>-1606733</y>
+		<lens>0.694806</lens>
+		<x>15708142</x>
+		<y>-4257927</y>
 		<z>0</z>
 		<showtitle>0</showtitle>
 		<showhistogram>0</showhistogram>
 		<showlineprofile>0</showlineprofile>
 		<annotation type="pin" displayname="AnnotatePin" color="#ff0000">
-			<x>14497989</x>
-			<y>-1918133</y>
+			<x>17777268</x>
+			<y>-7024315</y>
 			<icon>pinred</icon>
 			<stricon>iconpinred</stricon>
 		</annotation>
 	</ndpviewstate>
 	<ndpviewstate id="5">
-		<title>zoom</title>
+		<title>crop</title>
 		<details/>
 		<coordformat>nanometers</coordformat>
-		<lens>2.346592</lens>
-		<x>14140944</x>
-		<y>-1606733</y>
+		<lens>0.694806</lens>
+		<x>13180095</x>
+		<y>-1369865</y>
 		<z>0</z>
 		<showtitle>0</showtitle>
 		<showhistogram>0</showhistogram>
 		<showlineprofile>0</showlineprofile>
-		<annotation type="pin" displayname="AnnotatePin" color="#ff0000">
-			<x>12368868</x>
-			<y>-1922008</y>
-			<icon>pinred</icon>
-			<stricon>iconpinred</stricon>
-		</annotation>
-	</ndpviewstate>
-	<ndpviewstate id="6">
-		<title>rotation</title>
-		<details/>
-		<coordformat>nanometers</coordformat>
-		<lens>2.346592</lens>
-		<x>14140944</x>
-		<y>-1606733</y>
-		<z>0</z>
-		<showtitle>1</showtitle>
-		<showhistogram>0</showhistogram>
-		<showlineprofile>0</showlineprofile>
-		<annotation type="linearmeasure" displayname="AnnotateRuler" color="#000000">
-			<x1>11974011</x1>
-			<y1>-396749</y1>
-			<x2>16886486</x2>
-			<y2>-2324626</y2>
+		<annotation type="freehand" displayname="AnnotateRectangle" color="#000000">
+			<measuretype>0</measuretype>
+			<closed>1</closed>
+			<pointlist>
+				<point>
+					<x>8141250</x>
+					<y>-13553956</y>
+				</point>
+				<point>
+					<x>995812</x>
+					<y>1332719</y>
+				</point>
+				<point>
+					<x>17449796</x>
+					<y>9230805</y>
+				</point>
+				<point>
+					<x>24595234</x>
+					<y>-5655869</y>
+				</point>
+			</pointlist>
+			<specialtype>rectangle</specialtype>
+			<specialtype>rectangle</specialtype>
 		</annotation>
 	</ndpviewstate>
 </annotations>
