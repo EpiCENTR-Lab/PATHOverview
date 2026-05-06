@@ -151,13 +151,13 @@ def add_scalebar(img, scale_bar = 100, sb_ratio = 50, sb_mpp = None, sb_color = 
     #number of pixels in scalebar
     sb_px_x = scale_bar//mpp
     sb_px_y = max(img.height//sb_ratio,5) #ratio scale bar to image height
-    if "r" in sb_position or "right" in sb_position:
+    if "r" in sb_position.lower() or "right" in sb_position.lower():
         sb_x1 = img.width-sb_pad-sb_px_x
         sb_x2 = img.width-sb_pad
     else:
         sb_x1 = 0+sb_pad
         sb_x2 = sb_px_x+sb_pad
-    if "t" in sb_position or "top" in sb_position:
+    if "t" in sb_position.lower() or "top" in sb_position.lower():
         sb_y1 = 0+sb_pad
         sb_y2 = sb_px_y+sb_pad
     else:
@@ -177,7 +177,7 @@ def add_scalebar(img, scale_bar = 100, sb_ratio = 50, sb_mpp = None, sb_color = 
         _, _, width, height = draw.textbbox((0,0), sb_text, font=font) 
         # returns (left, top, right, bottom) of bounding box
         if width > sb_px_x: # label is longer than the scalebar therefore will overflow image
-            if "r" in sb_position or "right" in sb_position:
+            if "r" in sb_position.lower() or "right" in sb_position.lower():
                 anchor = "r"
                 text_x = sb_x2
             else:
@@ -186,7 +186,7 @@ def add_scalebar(img, scale_bar = 100, sb_ratio = 50, sb_mpp = None, sb_color = 
         else:
             anchor = "m"
             text_x = sb_x1 + (sb_x2 - sb_x1)//2
-        if "t" in sb_position or "top" in sb_position:
+        if "t" in sb_position.lower() or "top" in sb_position.lower():
             text_y = sb_y2
             anchor += "a"
         else:
@@ -245,15 +245,18 @@ def apply_wb(img, wb, use_wb, **kwargs):
     return img2
 
 def add_label(img, label = None, label_xpad = 5, label_ypad = 5, 
-              label_position = "br", label_size = "auto", label_color = "#000000", **kwargs):
+              label_position = "br", label_size = "auto", label_color = "#000000", 
+              label_background = None, label_background_pad = 5, **kwargs):
     """Add a label to image.
     img: PIL image to add label to.
     label: string to add
-    label_xpad: 
-    label_ypad:
+    label_xpad: pixel padding of text from image side
+    label_ypad: pixel padding of text from image bottom/top
     label_color: color of label
     label_position: position of label (string: 'bl', 'tl', 'br', 'tr')
     label_size: in pixels
+    label_background: color of label background
+    label_background_pad: padding added around text bbox
     returns: PIL image with mpp data retained"""
 
     if label == None or label == "":
@@ -266,19 +269,25 @@ def add_label(img, label = None, label_xpad = 5, label_ypad = 5,
     draw = ImageDraw.Draw(img)
     font = ImageFont.truetype(matplotlib.font_manager.findfont(None), label_size)
     
-    if "r" in label_position:
+    if "r" in label_position.lower():
         anchor = "r"
         text_x =  img.width - label_xpad
     else:
         anchor = "l"
         text_x =  label_xpad
         
-    if "t" in label_position:
+    if "t" in label_position.lower():
         anchor += "t"#"a"
         text_y =  label_ypad
     else:
         anchor += "b"#"d"
         text_y =  img.height - label_ypad
+
+    if label_background != None:
+        bbox = draw.textbbox((text_x,text_y), label, font=font, anchor=anchor)
+        bbox = (bbox[0] - label_background_pad, bbox[1] - label_background_pad,
+                bbox[2] + label_background_pad, bbox[3] + label_background_pad)
+        draw.rectangle(bbox, fill=label_background, outline=None, width=0)
 
     draw.text((text_x,text_y), label, font=font, anchor=anchor, fill=label_color)
     return img
@@ -350,7 +359,7 @@ class slide_obj:
         """ Read .ndpa file with the same name as .ndpi slide to extract zoom, 
             crop, rotation and background information.
             Annotation information extracted:
-              - zoom_point: must be a pin named 'zoom'
+              - zoom_point: must be a pin named 'zoom' or 'zoom_1' -> 'zoom_n'
               - crop: can be
                     ~ rectangle named 'crop'. This will set rotation and crop bounds
                     ~ pin named 'crop': This will be the centre of a crop box of full 
@@ -359,7 +368,9 @@ class slide_obj:
                     when crop not defined or is a pin
               - background/whitebalance: a pin named 'background'. A 300x300um sample 
                     will be used to calculate background color 
-            Returns dict containing any of: zoom_point, crop, rotation, wb_point
+              - mirror: a pin (anywhere) named 'mirror'
+            Returns list of dicts (one per zoom_point) containing any of: 
+                zoom_point, crop, rotation, wb_point
         """
         import xml.etree.ElementTree as ET
         from math import degrees, atan2, hypot
@@ -367,17 +378,18 @@ class slide_obj:
         
         if Path.exists(ndpa_file):
             ndpa_digest = {}
+            zoom_points = {}
             ETroot = ET.parse(ndpa_file).getroot()
             for viewstate in ETroot.findall("ndpviewstate"):
-                title = viewstate.find("title").text
+                title = str(viewstate.find("title").text).lower() #
                 ann_type = viewstate.find("annotation").get("displayname")
                 
-                if title == "zoom" and ann_type == "AnnotatePin":
+                if "zoom" in title and ann_type == "AnnotatePin":
                     zoom_x = int(float(viewstate.find("annotation").find("x").text))
                     zoom_y = int(float(viewstate.find("annotation").find("y").text))
                     zoom_point = self.ndpa_to_relative((zoom_x, zoom_y))
                     self.zoom_point = zoom_point
-                    ndpa_digest["zoom_point"] = zoom_point
+                    zoom_points[title] = zoom_point
                     
                 elif title == "crop" and ann_type == "AnnotatePin":
                     crop_x = int(float(viewstate.find("annotation").find("x").text))
@@ -392,6 +404,10 @@ class slide_obj:
                     bg_point = self.ndpa_to_relative((bg_x, bg_y))
                     self.wb_point = bg_point
                     ndpa_digest["wb_point"] = bg_point
+
+                elif title == "mirror" and ann_type == "AnnotatePin":
+                    self.mirror = True
+                    ndpa_digest["mirror"] = True
                     
                 elif title == "rotation" and ann_type == "AnnotateRuler":
                     x1 = int(float(viewstate.find("annotation").find("x1").text))
@@ -426,7 +442,16 @@ class slide_obj:
                     crop = (crop_point, w/wnm, h/hnm)
                     self.crop = crop
                     ndpa_digest["crop"] = (crop_point, w/wnm, h/hnm)
-            return ndpa_digest
+            
+            if ndpa_digest.get("mirror", False) == True:
+                self.rotation = (180 - self.rotation) % 360
+                ndpa_digest["rotation"] = self.rotation
+
+            if len(zoom_points) > 0:
+                for t, z in sorted(zoom_points.items()): # sort values
+                    return [{"zoom_point":z, "label":t, **ndpa_digest} for t, z in sorted(zoom_points.items())]
+            else:
+                return [ndpa_digest,]
         else:
             msg = ".ndpa file not found."
             raise ValueError(msg)
@@ -511,12 +536,15 @@ class slide_obj:
             img = add_scalebar(img, scale_bar=scale_bar, **kwargs)        
         return img
 
-    def get_macro_image(self, max_size = 500):
+    def get_macro_image(self, max_size = 500, rotated = False):
         """ Return PIL.Image containing the macro slide image thumbnailed to max_size
             if available else a 2x2 blank image.
         """
         if "macro" in self.slide.associated_images.keys():
-            return thumb_image(self.slide.associated_images["macro"], (max_size,max_size))
+            if rotated:
+                return thumb_image(self.slide.associated_images["macro"], (max_size,max_size)).rotate(-90, expand = True)
+            else:
+                return thumb_image(self.slide.associated_images["macro"], (max_size,max_size))
         else:
             return Image.new('RGBA', (2,2), "#ffffff")
 
@@ -708,7 +736,7 @@ class slide_obj:
         #loc2 = (new_x/image1.size[0], new_y/image1.size[1])
         return (new_x, new_y)
     
-    def get_figure(self, panel_size = (500,500), add_inset = True, inset_size = None, zoom_real_size = 250, 
+    def get_figure(self, panel_size = (500,500), add_inset = True, inset_size = None, inset_position = "tr", zoom_real_size = 250, 
                    rotation = None, mirror = None, zoom_point = None, crop = None, 
                    scale_bar = None, inset_scale_bar = None, crop_real_width = None, 
                    **kwargs):
@@ -765,7 +793,18 @@ class slide_obj:
                  int((box_y+box_height/2)))
                 ), outline="black")
 
-            base_image.paste(zoomed_image, (int(base_image.width-zoomed_image.width),0))
+            if inset_position.lower() != "off":
+                # off == option to turn off the inset image but keep the highlight box
+                if "b" in inset_position.lower():
+                    inset_y = int(base_image.height-zoomed_image.width)
+                else:
+                    inset_y = 0
+                if "l" in inset_position.lower():
+                    inset_x = 0
+                else:
+                    inset_x = int(base_image.width-zoomed_image.width)
+                base_image.paste(zoomed_image, (inset_x,inset_y))
+            
             del zoomed_image
 
         return base_image
@@ -1004,10 +1043,18 @@ class pathofigure:
                     image = apply_border(sld.get_raw_overview_image(
                         image_size = row["panel_size"], sb=row["scale_bar"]))
                 
-                elif row["fig_type"] in ["slide","Slide"]:
+                elif row["fig_type"] in ["summary","Summary"]:
                     image = apply_border(sld.get_summary_figure(
                         width = row["panel_size"][0]))
-                
+
+                elif row["fig_type"] in ["slide","Slide"]:
+                    image = apply_border(sld.get_macro_image(
+                        max_size = max(row["panel_size"][0],row["panel_size"][1])))
+
+                elif row["fig_type"] in ["slide-vertical","Slide-vertical"]:
+                    image = apply_border(sld.get_macro_image(
+                        max_size = max(row["panel_size"][0],row["panel_size"][1]), rotated = True))
+                    
                 else:
                     image = sld.get_figure(**row)
         return image
@@ -1193,25 +1240,25 @@ class pathoverview_interactive_fig:
         rads = -radians(self.rotation)
         new_x = centre[0] + cos(rads) * (loc1[0] - centre[0]) - sin(rads) * (loc1[1] - centre[1])
         new_y = centre[1] + sin(rads) * (loc1[0] - centre[0]) + cos(rads) * (loc1[1] - centre[1])
-        return (new_x, new_y)
+        return (float(new_x), float(new_y))
     
     def rotate_to_image(self, loc1, centre = (0,0)):
         rads = radians(self.rotation)
         new_x = centre[0] + cos(rads) * (loc1[0] - centre[0]) - sin(rads) * (loc1[1] - centre[1])
         new_y = centre[1] + sin(rads) * (loc1[0] - centre[0]) + cos(rads) * (loc1[1] - centre[1])
-        return (new_x, new_y)
+        return (float(new_x), float(new_y))
 
     def point_to_relative(self, point):
         if self.mirror:
-            return ((-point[0]+self.width/2)/self.width, (point[1]+self.height/2)/self.height)
+            return (float((-point[0]+self.width/2)/self.width), float((point[1]+self.height/2)/self.height))
         else:
-            return ((point[0]+self.width/2)/self.width, (point[1]+self.height/2)/self.height)
+            return (float((point[0]+self.width/2)/self.width), float((point[1]+self.height/2)/self.height))
     
     def relative_to_point(self, rel):
         if self.mirror:
-            return ((-rel[0]*self.width-self.width/2), (rel[1]*self.height-self.height/2))
+            return (float((-rel[0]*self.width-self.width/2)), float((rel[1]*self.height-self.height/2)))
         else:
-            return ((rel[0]*self.width-self.width/2), (rel[1]*self.height-self.height/2))
+            return (float((rel[0]*self.width-self.width/2)), float((rel[1]*self.height-self.height/2)))
 
     def disconnect(self):
         """ Uninstall the event handlers for the plot. """
@@ -1227,7 +1274,7 @@ class pathoverview_interactive_fig:
             width = (self.r_selector.extents[1] - self.r_selector.extents[0])/self.width
             height = (self.r_selector.extents[3] - self.r_selector.extents[2])/self.height
             #((center), x width, y height)
-            self.crop = (self.rotate_to_image(self.r_selector.center), width, height)
+            self.crop = (self.rotate_to_image(self.r_selector.center), float(width), float(height))
         return self.crop
 
     def onclick(self, event):
